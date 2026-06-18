@@ -1,0 +1,12 @@
+
+Welcome to ai-journal!
+
+No virtual environment yet. Set one up:
+
+  ./scripts/setup.sh
+
+Or from VS Code — Ctrl+P, then type  >Tasks: Run Task
+  • Setup: create venv + install
+
+Then reload the VS Code window so the interpreter is picked up.
+Full guide: docs/DEVELOPMENT.md

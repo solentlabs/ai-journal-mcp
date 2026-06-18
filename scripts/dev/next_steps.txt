@@ -1,0 +1,13 @@
+
+ai-journal — (.venv) active
+
+  make check    full gate: lint · format · type · docs · tests
+  make test     tests with coverage
+  make help     all make targets
+
+VS Code tasks — Ctrl+P, then type  >Tasks: Run Task
+  • Check: all          the full gate
+  • Test: All           tests with coverage
+  • Lint: docs          cspell + markdownlint
+
+Docs: docs/DEVELOPMENT.md

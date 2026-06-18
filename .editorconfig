@@ -1,0 +1,27 @@
+# EditorConfig — consistent whitespace across editors. https://editorconfig.org
+# Pairs with .gitattributes (line endings) and .vscode/settings.json.
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+indent_style = space
+indent_size = 4
+
+# Python line length matches [tool.ruff] line-length = 120.
+[*.py]
+max_line_length = 120
+
+# Data/markup conventionally use 2-space indent.
+[*.{json,jsonc,yaml,yml,toml,md}]
+indent_size = 2
+
+# Markdown: trailing whitespace can be a meaningful hard line break.
+[*.md]
+trim_trailing_whitespace = false
+
+# Makefiles require literal tabs.
+[Makefile]
+indent_style = tab

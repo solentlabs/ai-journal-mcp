@@ -1,0 +1,7 @@
+{
+  "description": "Per-theme file using level-2 '## date: title' headers (header_level preserved).",
+  "entries": [
+    {"date": "2025-11-28", "title": "The Private Key Bug", "header_level": 2},
+    {"date": "2025-11-30", "title": "Release Process", "header_level": 2}
+  ]
+}

@@ -1,0 +1,15 @@
+{
+  "name": "ai-journal-docs-tooling",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Documentation linting (cspell + markdownlint) for the ai-journal repo. Not published — see docs/DEVELOPMENT.md. ai-journal itself is a Python package (pyproject.toml).",
+  "scripts": {
+    "lint:docs": "cspell --no-progress --no-summary \"**/*\" && markdownlint-cli2 \"**/*.md\"",
+    "spell": "cspell --no-progress --no-summary \"**/*\"",
+    "markdownlint": "markdownlint-cli2 \"**/*.md\""
+  },
+  "devDependencies": {
+    "cspell": "^10.0.1",
+    "markdownlint-cli2": "^0.22.1"
+  }
+}

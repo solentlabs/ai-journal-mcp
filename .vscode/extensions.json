@@ -1,0 +1,37 @@
+{
+  // Recommended on folder-open. Deliberately minimal: installing all of these
+  // makes the editor work AND match what `make check` / CI enforce, so a new
+  // contributor's one prompt is an easy "Install All" — not a menu of opinions.
+  "recommendations": [
+    // Python language support + type checking (fixes "unresolved import")
+    "ms-python.python",
+    "ms-python.vscode-pylance",
+
+    // Ruff: the project's single linter + formatter (SSOT, see pyproject.toml)
+    "charliermarsh.ruff",
+
+    // Spelling + markdown lint — so docs-gate failures show in the editor,
+    // not first in CI. cspell reads cspell.config.yaml; markdownlint reads
+    // .markdownlint-cli2.jsonc.
+    "streetsidesoftware.code-spell-checker",
+    "DavidAnson.vscode-markdownlint"
+  ],
+
+  // Optional quality-of-life — intentionally NOT recommended (no startup
+  // prompt). Nothing in the gate needs them; install by hand if you want them:
+  //   tamasfe.even-better-toml    pyproject.toml schema validation + format
+  //   redhat.vscode-yaml          YAML frontmatter / config editing
+  //   yzhang.markdown-all-in-one  markdown authoring shortcuts
+
+  // Extensions that conflict with the Ruff-only / pytest setup. Listing them
+  // here suppresses their "recommended" prompts and flags them if installed.
+  "unwantedRecommendations": [
+    "ms-python.black-formatter",  // formatting is Ruff's job
+    "ms-python.isort",            // import sorting is Ruff's job (rule "I")
+    "ms-python.flake8",           // linting is Ruff's job
+    "ms-python.pylint",
+    "ms-python.autopep8",
+    "littlefoxteam.vscode-python-test-adapter",  // conflicts with native pytest
+    "hbenl.vscode-test-explorer"
+  ]
+}

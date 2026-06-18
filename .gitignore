@@ -1,0 +1,28 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+.venv/
+venv/
+
+# Tooling
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+htmlcov/
+.coverage
+
+# Node (doc-lint tooling only: cspell + markdownlint — see package.json).
+# The lockfile is intentionally not committed: Node is peripheral here, and the
+# caret pins in package.json bound the linter majors. CI installs without it.
+node_modules/
+package-lock.json
+
+# ai-journal indexes are disposable, never committed
+*.db
+*.sqlite3
+
+# Project-local Claude memory
+.claude/memory/

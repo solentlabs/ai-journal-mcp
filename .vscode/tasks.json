@@ -1,0 +1,81 @@
+{
+  // Tasks delegate to the Makefile so the editor and the terminal run the
+  // exact same commands (SSOT). Ctrl/Cmd+Shift+P → "Tasks: Run Task".
+  "version": "2.0.0",
+  "tasks": [
+    {
+      // Runs automatically on folder open (task.allowAutomaticTasks in
+      // settings.json). Prints next-steps if the venv exists, or a "run
+      // setup.sh" nudge if it doesn't — the first-run signpost.
+      "label": "Welcome",
+      "type": "shell",
+      "command": "bash scripts/dev/welcome.sh",
+      "runOptions": { "runOn": "folderOpen" },
+      "presentation": { "reveal": "always", "panel": "dedicated", "clear": true },
+      "problemMatcher": []
+    },
+    {
+      "label": "Setup: create venv + install",
+      "type": "shell",
+      "command": "make setup",
+      "problemMatcher": []
+    },
+    {
+      "label": "Test: All (coverage)",
+      "type": "shell",
+      "command": "make test",
+      "group": { "kind": "test", "isDefault": true },
+      "problemMatcher": []
+    },
+    {
+      "label": "Test: Quick",
+      "type": "shell",
+      "command": "make test-quick",
+      "group": "test",
+      "problemMatcher": []
+    },
+    {
+      "label": "Lint (ruff check)",
+      "type": "shell",
+      "command": "make lint",
+      "problemMatcher": []
+    },
+    {
+      "label": "Lint: fix",
+      "type": "shell",
+      "command": "make lint-fix",
+      "problemMatcher": []
+    },
+    {
+      "label": "Format (ruff format)",
+      "type": "shell",
+      "command": "make format",
+      "problemMatcher": []
+    },
+    {
+      "label": "Type-check (mypy)",
+      "type": "shell",
+      "command": "make type-check",
+      "problemMatcher": []
+    },
+    {
+      "label": "Lint: docs (cspell + markdownlint)",
+      "type": "shell",
+      "command": "make lint-docs",
+      "problemMatcher": []
+    },
+    {
+      "label": "Check: all (lint + format + type + docs + tests)",
+      "type": "shell",
+      "command": "make check",
+      "group": { "kind": "build", "isDefault": true },
+      "problemMatcher": []
+    },
+    {
+      "label": "Verify dev environment",
+      "type": "shell",
+      "command": "make verify",
+      "problemMatcher": []
+    }
+  ]
+}

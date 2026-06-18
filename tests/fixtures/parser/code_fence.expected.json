@@ -1,0 +1,11 @@
+{
+  "description": "A dated header inside a fenced code block must NOT start a new entry; the fence stays in the surrounding entry's body.",
+  "entries": [
+    {
+      "date": "2026-01-01",
+      "title": "Real Entry",
+      "header_level": 3,
+      "body_contains": ["Still entry one.", "Example Inside Fence"]
+    }
+  ]
+}

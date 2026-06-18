@@ -1,0 +1,81 @@
+{
+  // ===========================================================================
+  // ai-journal — VS Code workspace settings (Linux / macOS / WSL2)
+  //
+  // First time here?  Run  ./scripts/setup.sh  to create .venv and install
+  // the package + dev tools, then reload the window.  Full guide:
+  // docs/DEVELOPMENT.md
+  // ===========================================================================
+
+  // Let the folder-open "Welcome" task (see tasks.json) run automatically so a
+  // first-time contributor gets an unmissable starting point.
+  "task.allowAutomaticTasks": "on",
+
+  // --- Python interpreter ---------------------------------------------------
+  // Point Pylance/pytest at the project venv. This is the single fix that
+  // clears the wall of "unresolved import" problems (mcp, yaml, ai_journal).
+  // Must be the python BINARY, not the .venv directory.
+  "python.defaultInterpreterPath": "${workspaceFolder}/.venv/bin/python",
+  // We activate the venv ourselves via the terminal profile below.
+  "python.terminal.activateEnvironment": false,
+
+  // --- Linting + formatting: Ruff is the single tool (SSOT) -----------------
+  // The Ruff extension's native server auto-discovers config from pyproject.toml.
+  "ruff.nativeServer": "on",
+  "editor.formatOnSave": true,
+  "[python]": {
+    "editor.defaultFormatter": "charliermarsh.ruff",
+    "editor.codeActionsOnSave": {
+      "source.fixAll.ruff": "explicit",
+      "source.organizeImports.ruff": "explicit"
+    }
+  },
+
+  // --- Type checking --------------------------------------------------------
+  // mypy is the authority (see pyproject [tool.mypy]); keep Pylance light so
+  // the two don't double-report. Bump to "basic" if you want inline hints.
+  "python.analysis.typeCheckingMode": "off",
+  "python.analysis.autoImportCompletions": true,
+
+  // --- Testing --------------------------------------------------------------
+  "python.testing.pytestEnabled": true,
+  "python.testing.unittestEnabled": false,
+  "python.testing.pytestArgs": ["tests"],
+  "python.testing.autoTestDiscoverOnSaveEnabled": true,
+
+  // --- File hygiene (mirrors .editorconfig / .gitattributes) ----------------
+  "files.eol": "\n",
+  "files.trimTrailingWhitespace": true,
+  "files.insertFinalNewline": true,
+  "files.trimFinalNewlines": true,
+  "editor.rulers": [120],
+
+  // Hide disposable artifacts so the Explorer/search stays focused on sources.
+  "files.exclude": {
+    "**/__pycache__": true,
+    "**/*.egg-info": true,
+    "**/.pytest_cache": true,
+    "**/.ruff_cache": true,
+    "**/.mypy_cache": true,
+    "**/*.db": true,
+    "**/*.sqlite3": true
+  },
+
+  // --- Terminal: auto-activate the venv on open -----------------------------
+  "terminal.integrated.profiles.linux": {
+    "bash": {
+      "path": "bash",
+      "icon": "terminal-bash",
+      "args": ["--init-file", "${workspaceFolder}/scripts/dev/activate_venv.sh"]
+    }
+  },
+  "terminal.integrated.profiles.osx": {
+    "bash": {
+      "path": "bash",
+      "icon": "terminal-bash",
+      "args": ["--init-file", "${workspaceFolder}/scripts/dev/activate_venv.sh"]
+    }
+  },
+  "terminal.integrated.defaultProfile.linux": "bash",
+  "terminal.integrated.defaultProfile.osx": "bash"
+}

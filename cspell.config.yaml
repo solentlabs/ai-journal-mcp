@@ -1,0 +1,105 @@
+version: "0.2"
+language: en
+
+ignorePaths:
+  - .venv/**
+  - node_modules/**
+  - .git/**
+  - htmlcov/**
+  - .pytest_cache/**
+  - "**/*.db"
+  # Parser fixtures are real-world journal samples, not curated prose.
+  - tests/fixtures/**
+
+# Test search strings and keyword stems — valid in context, not vocabulary
+ignoreWords:
+  - absentterm
+  - nonexistentterm
+  - sanitiz
+  - tlines
+
+words:
+  # Python / tooling
+  - addopts
+  - arcname
+  - capsys
+  - conftest
+  - dataclass
+  - debugpy
+  - dedups
+  - editorconfig
+  - fastmcp
+  - htmlcov
+  - isort
+  - Makefiles
+  - mccabe
+  - minversion
+  - mypy
+  - precommit
+  - pycache
+  - Pyflakes
+  - pylint
+  - pyproject
+  - pyright
+  - PYPI
+  - pypa
+  - sdist
+  - pytest
+  - pyyaml
+  - relpath
+  - stdlib
+  - testpaths
+  - tomli
+  - tomllib
+  - venv
+
+  # Project conventions / acronyms
+  - SSOT
+
+  # Editor / extension publisher IDs (appear in .vscode/*.json)
+  - Anson
+  - autopep
+  - charliermarsh
+  - hbenl
+  - littlefoxteam
+  - Pylance
+  - tamasfe
+  - yzhang
+
+  # SQLite / stdlib internals
+  - executescript
+  - fromlist
+  - lastrowid
+
+  # Journal / markdown domain
+  - bareword
+  - dedup
+  - Dedup
+  - diffable
+  - frontmatter
+  - Frontmatter
+  - greppable
+  - journaling
+  - megafile
+  - megafiles
+  - rstripped
+  - syncable
+  - unioned
+  - unthemed
+
+  # Project / external references
+  - goatcounter
+  - intelliflow
+  - shipslog
+  - solentlabs
+  - wireshark
+
+  # Catalog domain terms (appear in theme-keyword lists)
+  - docsis
+  - hacs
+  - HNAP
+  - hnap
+  - netgear
+  - ofdm
+  - snmp
+  - tagvaluelist

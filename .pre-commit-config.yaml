@@ -1,0 +1,58 @@
+# Optional git hooks. Install with `make install-hooks` (or `setup.sh`), which
+# installs BOTH the pre-commit and pre-push stages (default_install_hook_types).
+#
+# Hooks are CHECK-ONLY — they never rewrite your files. They block work that
+# would fail CI and tell you what to fix, leaving staging to you. They run the
+# project's own tools (venv ruff/mypy, pinned Node linters), so versions match
+# pyproject.toml / package.json exactly — no second source of truth.
+#
+#   pre-commit : fast checks on every commit  (ruff, mypy, docs lint)
+#   pre-push   : the full test suite          (so a push can't break main)
+#
+# Fix what they flag with:  make lint-fix && make format
+default_install_hook_types: [pre-commit, pre-push]
+repos:
+  - repo: local
+    hooks:
+      # --- pre-commit: fast, on every commit ---
+      - id: ruff-check
+        name: ruff check
+        entry: .venv/bin/ruff check
+        language: system
+        types: [python]
+        stages: [pre-commit]
+        require_serial: true
+
+      - id: ruff-format-check
+        name: ruff format --check
+        entry: .venv/bin/ruff format --check
+        language: system
+        types: [python]
+        stages: [pre-commit]
+        require_serial: true
+
+      - id: mypy
+        name: mypy
+        entry: .venv/bin/mypy
+        language: system
+        types: [python]
+        pass_filenames: false
+        stages: [pre-commit]
+        require_serial: true
+
+      - id: docs-lint
+        name: docs lint (cspell + markdownlint)
+        entry: bash scripts/lint-docs.sh
+        language: system
+        pass_filenames: false
+        stages: [pre-commit]
+        require_serial: true
+
+      # --- pre-push: slower, before a push ---
+      - id: pytest
+        name: pytest (full suite)
+        entry: .venv/bin/pytest -q
+        language: system
+        pass_filenames: false
+        stages: [pre-push]
+        require_serial: true

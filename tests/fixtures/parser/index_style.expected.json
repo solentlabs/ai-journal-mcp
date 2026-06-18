@@ -1,0 +1,16 @@
+{
+  "description": "Index-style journal: '### date: title' headers; non-dated '### The Situation' stays in the body; trailing '---' separators stripped.",
+  "entries": [
+    {
+      "date": "2026-06-11",
+      "title": "First Entry",
+      "header_level": 3,
+      "body_contains": ["The Situation"],
+      "body_endswith": "not a new entry."
+    },
+    {
+      "date": "2026-06-10",
+      "title": "Second Entry"
+    }
+  ]
+}

@@ -1,0 +1,6 @@
+{
+  "description": "A header whose date is calendar-invalid (month 13, day 45) is skipped; only the valid entry is parsed.",
+  "entries": [
+    {"date": "2026-02-06", "title": "Real"}
+  ]
+}

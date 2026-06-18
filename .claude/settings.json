@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(make:*)",
+      "Bash(./scripts/setup.sh)",
+      "Bash(./scripts/verify-setup.sh)",
+      "Bash(./scripts/lint-docs.sh)",
+      "Bash(.venv/bin/pytest:*)",
+      "Bash(.venv/bin/ruff:*)",
+      "Bash(.venv/bin/mypy:*)",
+      "Bash(.venv/bin/ai-journal scan:*)",
+      "Bash(.venv/bin/ai-journal search:*)",
+      "Bash(.venv/bin/ai-journal reindex:*)",
+      "Bash(git status:*)",
+      "Bash(git diff:*)",
+      "Bash(git log:*)"
+    ]
+  }
+}

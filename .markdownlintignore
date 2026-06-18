@@ -1,0 +1,12 @@
+# Paths the markdownlint VS Code extension should skip. Mirrors the "ignores"
+# in .markdownlint-cli2.jsonc — the extension reads THIS file (gitignore
+# syntax), not the cli2 config's ignores array, so both must agree.
+#
+# tests/fixtures/ holds deliberately-messy real-world journal samples (entries
+# starting at ## or ###, multiple H1s); linting them as prose is noise.
+.venv/
+node_modules/
+htmlcov/
+.pytest_cache/
+__pycache__/
+tests/fixtures/

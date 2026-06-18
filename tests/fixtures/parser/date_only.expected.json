@@ -1,0 +1,7 @@
+{
+  "description": "Date-only session log: '## YYYY-MM-DD' headers with no title (title is null, body verbatim).",
+  "entries": [
+    {"date": "2026-06-11", "title": null, "body": "Session notes."},
+    {"date": "2026-06-09", "title": null, "body": "Earlier session."}
+  ]
+}

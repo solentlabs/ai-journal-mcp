@@ -1,0 +1,22 @@
+# Normalize all text files to LF in the repo, regardless of contributor OS
+# (matters for WSL2 / Windows checkouts). Pairs with .editorconfig.
+* text=auto eol=lf
+
+# Shell scripts must stay LF even if a Windows tool touches them.
+*.sh text eol=lf
+
+# Markdown is the source of truth for journals — keep it diffable as text.
+*.md text eol=lf
+
+# Binary assets: never normalize.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.gz binary
+
+# Disposable SQLite indexes should never be committed, but if one sneaks in,
+# treat it as binary so Git doesn't try to diff it.
+*.db binary
+*.sqlite3 binary

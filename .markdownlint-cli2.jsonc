@@ -1,0 +1,38 @@
+{
+  // Single markdownlint config for BOTH the CLI (markdownlint-cli2) and the
+  // VS Code extension. Rules + ignores live together here so the editor and
+  // the CLI can't read different configs (the cause of "clean in CI, warnings
+  // in the editor"). There is intentionally no separate .markdownlint.jsonc.
+  "config": {
+    "default": true,
+
+    // Line length — off. Spec tables, URLs, and prose wrap naturally.
+    "MD013": false,
+
+    // Ordered-list prefix — off. We use incremental "1. 2. 3.", not all-ones.
+    "MD029": false,
+
+    // Duplicate headings — allowed across different sections (e.g. each doc
+    // may have its own "Troubleshooting").
+    "MD024": { "siblings_only": true },
+
+    // First-line H1 — off. The parser fixtures legitimately open at ## / ###
+    // (they are real journal entries); every actual doc starts with an H1
+    // regardless, so the rule earns nothing and only flags the samples.
+    "MD041": false,
+
+    // Table column style — off. The rule incorrectly treats separator rows
+    // (|------|) as "compact" and flags every padded data row.
+    "MD060": false
+  },
+
+  "ignores": [
+    ".venv/**",
+    "node_modules/**",
+    "htmlcov/**",
+    "**/.pytest_cache/**",
+    "**/__pycache__/**",
+    // Parser fixtures are deliberately-messy real-world samples, not prose.
+    "tests/fixtures/**"
+  ]
+}
