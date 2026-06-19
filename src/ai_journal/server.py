@@ -24,29 +24,28 @@ def _sources():
     return {src.name: src for src in load_config()}
 
 
-def _sources_mtime() -> float:
-    """Cheap freshness signal: managed journals touch JOURNAL.md on every
-    write; file sources are stat'd directly. Directory-indexed sources are
-    not deep-scanned — use the reindex tool after bulk-editing those."""
-    newest = 0.0
-    for src in _sources().values():
-        probe = src.path if src.path.is_file() else src.path / "JOURNAL.md"
-        if probe.exists():
-            newest = max(newest, probe.stat().st_mtime)
-    return newest
+def _current_signatures() -> dict[str, str]:
+    """Live content signature per configured source (add/edit/delete-sensitive)."""
+    return {src.name: indexer.source_signature(src.path) for src in _sources().values()}
 
 
 def _ensure_index() -> Path:
-    if not DEFAULT_DB.exists() or _sources_mtime() > DEFAULT_DB.stat().st_mtime:
+    # Rebuild when the index is missing, or when any source's signature differs
+    # from what it was built with — which also covers a source added to or
+    # removed from the config.
+    if not DEFAULT_DB.exists() or indexer.read_signatures(DEFAULT_DB) != _current_signatures():
         _reindex()
     return DEFAULT_DB
 
 
 def _reindex() -> int:
+    sources = _sources()
     pairs: list[tuple[str, Entry]] = []
-    for src in _sources().values():
+    for src in sources.values():
         pairs.extend((src.name, entry) for entry in load_source(src))
-    return indexer.build_index(DEFAULT_DB, pairs)
+    count = indexer.build_index(DEFAULT_DB, pairs)
+    indexer.write_signatures(DEFAULT_DB, {src.name: indexer.source_signature(src.path) for src in sources.values()})
+    return count
 
 
 @mcp.tool()

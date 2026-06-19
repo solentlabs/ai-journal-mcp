@@ -6,6 +6,7 @@ can be regenerated from it at any time.
 
 from __future__ import annotations
 
+import hashlib
 import re
 import sqlite3
 from collections import Counter
@@ -60,6 +61,10 @@ CREATE TABLE IF NOT EXISTS entry_themes (
     theme TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_entry_themes_theme ON entry_themes (theme);
+CREATE TABLE IF NOT EXISTS source_meta (
+    name TEXT PRIMARY KEY,
+    signature TEXT NOT NULL
+);
 """
 
 
@@ -95,6 +100,57 @@ def build_index(db_path: Path, entries: list[tuple[str, Entry]]) -> int:
             )
         conn.commit()
         return conn.execute("SELECT count(*) FROM entries").fetchone()[0]
+    finally:
+        conn.close()
+
+
+def source_signature(path: Path) -> str:
+    """A content fingerprint of a source — changes on any add, edit, or remove.
+
+    Per source, the cheapest *correct* signal: a single file is its mtime+size;
+    a managed journal is its ``JOURNAL.md`` (touched by every managed write or
+    refresh — correct by contract, no walk); a raw indexed directory is a hash
+    over every ``.md`` (path + mtime + size), which catches edits *and*
+    deletions that a max-mtime heuristic would miss.
+    """
+    if path.is_file():
+        st = path.stat()
+        return f"f:{st.st_mtime_ns}:{st.st_size}"
+    journal_md = path / "JOURNAL.md"
+    if journal_md.exists():
+        st = journal_md.stat()
+        return f"m:{st.st_mtime_ns}:{st.st_size}"
+    h = hashlib.sha256()
+    for f in sorted(path.rglob("*.md")):
+        try:
+            st = f.stat()
+        except OSError:
+            continue
+        h.update(f"{f}\0{st.st_mtime_ns}\0{st.st_size}\0".encode())
+    return "d:" + h.hexdigest()[:16]
+
+
+def write_signatures(db_path: Path, signatures: dict[str, str]) -> None:
+    """Record each source's signature in the index (call right after build)."""
+    conn = sqlite3.connect(db_path)
+    try:
+        conn.executemany(
+            "INSERT OR REPLACE INTO source_meta (name, signature) VALUES (?, ?)",
+            list(signatures.items()),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def read_signatures(db_path: Path) -> dict[str, str]:
+    """Source signatures stored at last build. {} for a pre-signature/foreign
+    DB (which then reads as stale and triggers a rebuild)."""
+    conn = sqlite3.connect(db_path)
+    try:
+        return {name: sig for name, sig in conn.execute("SELECT name, signature FROM source_meta")}
+    except sqlite3.OperationalError:
+        return {}
     finally:
         conn.close()
 

@@ -98,6 +98,25 @@ def test_refresh_rescues_hand_added_journal_entry(journals):
     assert refresh_views(journals)[1] == 0
 
 
+def test_indexed_directory_staleness(tmp_path, monkeypatch):
+    # A raw indexed directory must go stale on add AND delete — the case the
+    # old max-mtime heuristic missed (a delete lowers the max mtime).
+    src = tmp_path / "logs"
+    src.mkdir()
+    (src / "a.md").write_text("## 2026-06-01\n\nfirst note about alpha\n")
+    monkeypatch.setattr(server, "load_config", lambda: [JournalSource("logs", src, "indexed")])
+    monkeypatch.setattr(server, "DEFAULT_DB", tmp_path / "idx.db")
+
+    assert server.search_journal("alpha")  # builds, finds
+    assert server.search_journal("beta") == []
+
+    (src / "b.md").write_text("## 2026-06-02\n\nsecond note about beta\n")
+    assert server.search_journal("beta")  # add detected -> rebuilt
+
+    (src / "a.md").unlink()
+    assert server.search_journal("alpha") == []  # delete detected -> rebuilt
+
+
 def test_list_themes_and_over_time(journals):
     server.reindex()
     themes = {t["theme"] for t in server.list_themes()}
