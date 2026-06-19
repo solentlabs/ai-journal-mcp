@@ -124,6 +124,7 @@ edits to those.
 | `get_entry(source)` | Full file text; rejects paths outside configured journals |
 | `add_entry(journal, title, body, themes?, tags?, blog_angles?, entry_date?)` | Managed journals only; writes entry, refreshes views, reindexes; returns the new path |
 | `list_themes()` | (theme, journal, count) rows, unthemed shown as `(unthemed)` |
+| `suggest_themes(text, limit=5)` | Existing themes ranked by FTS similarity to `text`; suggestion only, writes nothing |
 | `entries_over_time(theme?, journal?)` | (month, count) rows ascending |
 | `reindex()` | Full rebuild from sources |
 

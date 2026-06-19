@@ -25,9 +25,11 @@ the conversation; never make them format it.
    - `title` — concise and specific (a future search matches on it).
    - `body` — freeform: a whole-session dump, a single lesson, or a tidied-up
      list are all valid. This is the substance.
-   - `themes` — the topic(s) it belongs to. Reuse existing themes (from
-     `list_themes`) when they fit so pattern-finding stays coherent; add new
-     ones only when nothing fits. Multi-valued.
+   - `themes` — the topic(s) it belongs to. If the user named none, call
+     `suggest_themes(title + body)` and propose what it returns (existing themes
+     ranked by similarity); confirm, then use those. Reuse existing themes so
+     pattern-finding stays coherent; add a new one only when nothing fits.
+     Multi-valued.
    - `tags` — optional finer labels.
    - `blog_angles` — when the insight is post-worthy, propose one or more angles
      (working titles). This is the raw material for later writing; don't let it

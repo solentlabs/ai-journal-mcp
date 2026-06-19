@@ -1,7 +1,7 @@
 from datetime import date
 from pathlib import Path
 
-from ai_journal.indexer import build_index, entries_over_time, list_themes, search
+from ai_journal.indexer import build_index, entries_over_time, list_themes, search, suggest_themes
 from ai_journal.model import Entry
 
 
@@ -54,6 +54,16 @@ def test_rebuild_replaces_existing(tmp_path):
     count = build_index(db, [("only", make_entry(date(2026, 3, 1), "Solo", "alone"))])
     assert count == 1
     assert search(db, "hnap") == []
+
+
+def test_suggest_themes_from_similar_entries(tmp_path):
+    # new entry text overlaps the "Modem Fix" (modems) entry; the theme-less
+    # deals entry also matches but contributes no theme.
+    assert suggest_themes(make_db(tmp_path), "hnap auth bug in the modem") == ["modems"]
+
+
+def test_suggest_themes_empty_on_no_match(tmp_path):
+    assert suggest_themes(make_db(tmp_path), "xylophone zucchini") == []
 
 
 def test_search_handles_hyphenated_terms(tmp_path):

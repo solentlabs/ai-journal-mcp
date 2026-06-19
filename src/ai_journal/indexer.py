@@ -8,12 +8,14 @@ from __future__ import annotations
 
 import re
 import sqlite3
+from collections import Counter
 from pathlib import Path
 
 from .model import Entry
 
 _FTS_OPERATORS = {"AND", "OR", "NOT", "NEAR"}
 _FTS_TOKEN = re.compile(r'"[^"]*"|[()]|[^\s()]+')
+_OR_WORD = re.compile(r"[A-Za-z0-9]{3,}")
 
 
 def _sanitize_fts_query(query: str) -> str:
@@ -124,6 +126,49 @@ def search(
         return [dict(row) for row in conn.execute(sql, params)]
     finally:
         conn.close()
+
+
+def _fts_or_query(text: str) -> str:
+    """Build an FTS5 OR-query from a blob of text, for similarity matching.
+
+    FTS5 ANDs bare terms by default, which over-constrains "find similar"; we
+    want any-term overlap. Terms are alphanumeric (>=3 chars), deduped, and
+    capped. bm25 down-weights common words by idf, so a stopword list isn't
+    needed.
+    """
+    seen: list[str] = []
+    for word in _OR_WORD.findall(text.lower()):
+        if word not in seen:
+            seen.append(word)
+    return " OR ".join(seen[:40])
+
+
+def suggest_themes(db_path: Path, text: str, limit: int = 5, hits: int = 20) -> list[str]:
+    """Suggest existing themes for new entry text, by FTS similarity.
+
+    Finds entries similar to ``text``, tallies the themes of the top ``hits``
+    matches, and returns the most common existing themes, most-frequent first.
+    Returns [] when nothing matches. Suggestion only — writes nothing; the
+    caller proposes the results for confirmation. (The index stores one theme
+    per entry, so suggestions come from primary themes of similar entries.)
+    """
+    query = _fts_or_query(text)
+    if not query:
+        return []
+    conn = sqlite3.connect(db_path)
+    conn.row_factory = sqlite3.Row
+    try:
+        rows = conn.execute(
+            "SELECT e.theme AS theme FROM entries_fts "
+            "JOIN entries e ON e.id = entries_fts.rowid "
+            "WHERE entries_fts MATCH ? AND e.theme IS NOT NULL "
+            "ORDER BY bm25(entries_fts) LIMIT ?",
+            (query, hits),
+        ).fetchall()
+    finally:
+        conn.close()
+    counts = Counter(row["theme"] for row in rows)
+    return [theme for theme, _ in counts.most_common(limit)]
 
 
 def list_themes(db_path: Path) -> list[dict]:

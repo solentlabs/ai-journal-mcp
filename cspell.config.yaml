@@ -48,6 +48,7 @@ words:
   - pyyaml
   - relpath
   - stdlib
+  - stopword
   - testpaths
   - tomli
   - tomllib

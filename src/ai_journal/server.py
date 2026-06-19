@@ -113,6 +113,15 @@ def list_themes() -> list[dict]:
 
 
 @mcp.tool()
+def suggest_themes(text: str, limit: int = 5) -> list[str]:
+    """Suggest existing themes for a new entry, ranked by full-text similarity
+    to past entries. Use before add_entry when no themes were given: propose
+    these to the user, then pass the chosen ones to add_entry. Suggests only
+    existing themes and writes nothing."""
+    return indexer.suggest_themes(_ensure_index(), text, limit=limit)
+
+
+@mcp.tool()
 def entries_over_time(theme: str | None = None, journal: str | None = None) -> list[dict]:
     """Entries per month, optionally filtered by theme or journal — activity over time."""
     return indexer.entries_over_time(_ensure_index(), theme=theme, journal=journal)
