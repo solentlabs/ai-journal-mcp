@@ -43,6 +43,8 @@ blocked_by:                  # task ids this one waits on
 - configure-pypi
 entries:                     # entry paths giving this task its context
 - entries/2026-06/19-release-design.md
+tags:                        # optional free-form labels for grouping/filtering
+- release                    # e.g. a topic backlog ("blog"), a project, a context
 created: '2026-06-19'
 updated: '2026-06-19'
 ---
@@ -151,9 +153,9 @@ edits to those.
 | `list_themes()` | (theme, journal, count) rows, unthemed shown as `(unthemed)` |
 | `suggest_themes(text, limit=5)` | Existing themes ranked by FTS similarity to `text`; suggestion only, writes nothing |
 | `entries_over_time(theme?, journal?)` | (month, count) rows ascending |
-| `add_task(journal, title, body?, priority=medium, blocked_by?, entries?)` | Create a task (status `open`) in a managed journal; returns its id |
-| `update_task(journal, task_id, status?, priority?, blocked_by?, entries?, body?)` | Mutate a task in place; only the passed fields change |
-| `list_tasks(journal?, status?, priority?)` | Tasks, open/high-priority first; each carries `ready` and `entries` |
+| `add_task(journal, title, body?, priority=medium, blocked_by?, entries?, tags?)` | Create a task (status `open`) in a managed journal; returns its id |
+| `update_task(journal, task_id, status?, priority?, blocked_by?, entries?, body?, tags?)` | Mutate a task in place; only the passed fields change |
+| `list_tasks(journal?, status?, priority?, tag?)` | Tasks, open/high-priority first; each carries `ready`, `tags`, and `entries` |
 | `get_task(journal, task_id)` | Full task detail incl. `entries` to pull context via `get_entry` |
 | `reindex()` | Full rebuild from sources |
 

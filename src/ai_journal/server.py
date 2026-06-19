@@ -140,13 +140,22 @@ def add_task(
     priority: str = "medium",
     blocked_by: list[str] | None = None,
     entries: list[str] | None = None,
+    tags: list[str] | None = None,
 ) -> dict:
     """Create a task in a managed journal. Status starts 'open'; priority is
     high|medium|low; blocked_by lists task ids it waits on; entries are journal
-    entry paths giving it context. Tasks are mutable — unlike entries."""
+    entry paths giving it context; tags are free-form labels for grouping and
+    filtering (a topic backlog, a project, a context — "blog" is just one).
+    Tasks are mutable — unlike entries."""
     try:
         task = tasks.create_task(
-            _managed_root(journal), title, body=body, priority=priority, blocked_by=blocked_by, entries=entries
+            _managed_root(journal),
+            title,
+            body=body,
+            priority=priority,
+            blocked_by=blocked_by,
+            entries=entries,
+            tags=tags,
         )
     except tasks.TaskError as exc:
         raise ValueError(str(exc)) from exc
@@ -162,9 +171,10 @@ def update_task(
     blocked_by: list[str] | None = None,
     entries: list[str] | None = None,
     body: str | None = None,
+    tags: list[str] | None = None,
 ) -> dict:
     """Change a task in place — only the fields you pass. status: open|blocked|
-    done; priority: high|medium|low."""
+    done; priority: high|medium|low; tags are free-form grouping labels."""
     try:
         task = tasks.update_task(
             _managed_root(journal),
@@ -174,17 +184,24 @@ def update_task(
             blocked_by=blocked_by,
             entries=entries,
             body=body,
+            tags=tags,
         )
     except tasks.TaskError as exc:
         raise ValueError(str(exc)) from exc
-    return {"id": task.id, "status": task.status, "priority": task.priority, "blocked_by": task.blocked_by}
+    return {"id": task.id, "status": task.status, "priority": task.priority, "tags": task.tags}
 
 
 @mcp.tool()
-def list_tasks(journal: str | None = None, status: str | None = None, priority: str | None = None) -> list[dict]:
+def list_tasks(
+    journal: str | None = None,
+    status: str | None = None,
+    priority: str | None = None,
+    tag: str | None = None,
+) -> list[dict]:
     """Tasks across managed journals, open/high-priority first. Filter by
-    journal/status/priority. Each carries `ready` (every blocker done) and
-    `entries` (paths to pull context from with get_entry)."""
+    journal/status/priority/tag. `tag` is any free-form label — e.g. a topic
+    backlog ("blog"), a project, a context. Each task carries `ready` (every
+    blocker done), `tags`, and `entries` (paths to pull context with get_entry)."""
     out: list[dict] = []
     for src in _sources().values():
         if src.mode != "managed" or (journal and src.name != journal):
@@ -194,6 +211,8 @@ def list_tasks(journal: str | None = None, status: str | None = None, priority: 
         for task in tasks.sorted_tasks(loaded):
             if (status and task.status != status) or (priority and task.priority != priority):
                 continue
+            if tag and tag not in task.tags:
+                continue
             out.append(
                 {
                     "journal": src.name,
@@ -201,6 +220,7 @@ def list_tasks(journal: str | None = None, status: str | None = None, priority: 
                     "title": task.title,
                     "status": task.status,
                     "priority": task.priority,
+                    "tags": task.tags,
                     "blocked_by": task.blocked_by,
                     "entries": task.entries,
                     "ready": tasks.is_ready(task, by_id),
@@ -222,6 +242,7 @@ def get_task(journal: str, task_id: str) -> dict:
         "title": task.title,
         "status": task.status,
         "priority": task.priority,
+        "tags": task.tags,
         "blocked_by": task.blocked_by,
         "entries": task.entries,
         "body": task.body,

@@ -67,12 +67,14 @@ def test_sorted_open_high_first(tmp_path):
 
 def test_update_blocked_by_entries_body(tmp_path):
     t = create_task(tmp_path, "Z")
-    upd = update_task(tmp_path, t.id, blocked_by=["x"], entries=["entries/a.md"], body="new notes")
+    upd = update_task(tmp_path, t.id, blocked_by=["x"], entries=["entries/a.md"], body="new notes", tags=["blog"])
     assert upd.blocked_by == ["x"]
     assert upd.entries == ["entries/a.md"]
+    assert upd.tags == ["blog"]
     reloaded = get_task(tmp_path, t.id)
     assert reloaded.body == "new notes"
     assert reloaded.entries == ["entries/a.md"]
+    assert reloaded.tags == ["blog"]
 
 
 @pytest.fixture
@@ -97,6 +99,17 @@ def test_tools_reject_readonly_journal(tmp_path, monkeypatch):
     monkeypatch.setattr(server, "load_config", lambda: [JournalSource("ro", tmp_path / "ro", "indexed")])
     with pytest.raises(ValueError, match="read-only"):
         server.add_task("ro", "nope")
+
+
+def test_blog_topics_are_tagged_tasks(managed):
+    # A blog topic = a task tagged "blog": title + the entry link, sortable and
+    # checkable; list_tasks(tag="blog") is the backlog.
+    server.add_task("tech", "Write up signature-based staleness", tags=["blog"], entries=["entries/2026-06/19-x.md"])
+    server.add_task("tech", "Fix a CI flake", tags=["ops"])
+    blog = server.list_tasks(tag="blog")
+    assert [t["title"] for t in blog] == ["Write up signature-based staleness"]
+    assert blog[0]["tags"] == ["blog"]
+    assert blog[0]["entries"] == ["entries/2026-06/19-x.md"]
 
 
 def test_tool_surfaces_task_error_as_valueerror(managed):

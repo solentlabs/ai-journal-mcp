@@ -38,6 +38,7 @@ class Task:
     priority: str
     blocked_by: list[str] = field(default_factory=list)
     entries: list[str] = field(default_factory=list)
+    tags: list[str] = field(default_factory=list)
     body: str = ""
     created: str = ""  # ISO date
     updated: str = ""  # ISO date
@@ -62,6 +63,7 @@ def _write(task: Task) -> None:
         "priority": task.priority,
         "blocked_by": task.blocked_by,
         "entries": task.entries,
+        "tags": task.tags,
         "created": task.created,
         "updated": task.updated,
     }
@@ -77,6 +79,7 @@ def create_task(
     priority: str = "medium",
     blocked_by: list[str] | None = None,
     entries: list[str] | None = None,
+    tags: list[str] | None = None,
 ) -> Task:
     """Create a new task (status ``open``) under ``<root>/tasks/``."""
     _validate("open", priority)
@@ -95,6 +98,7 @@ def create_task(
         priority=priority,
         blocked_by=list(blocked_by or []),
         entries=list(entries or []),
+        tags=list(tags or []),
         body=body,
         created=today,
         updated=today,
@@ -118,6 +122,7 @@ def _load_one(path: Path) -> Task:
         priority=meta.get("priority") or "medium",
         blocked_by=list(meta.get("blocked_by") or []),
         entries=list(meta.get("entries") or []),
+        tags=list(meta.get("tags") or []),
         body=body.strip("\n"),
         created=str(meta.get("created") or ""),
         updated=str(meta.get("updated") or ""),
@@ -147,6 +152,7 @@ def update_task(
     blocked_by: list[str] | None = None,
     entries: list[str] | None = None,
     body: str | None = None,
+    tags: list[str] | None = None,
 ) -> Task:
     """Mutate a task in place; only the fields passed are changed."""
     task = get_task(root, task_id)
@@ -160,6 +166,8 @@ def update_task(
         task.entries = list(entries)
     if body is not None:
         task.body = body
+    if tags is not None:
+        task.tags = list(tags)
     _validate(task.status, task.priority)
     task.updated = date.today().isoformat()
     _write(task)

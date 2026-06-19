@@ -155,6 +155,45 @@ gave it context (UC7). Markdown stays the source of truth for both; a task is
 just the mutable file. Tasks live outside the disposable search index — they're
 real data, loaded from their files directly.
 
+A **blog-topic backlog** is the same kind, not a separate tool: a blog topic is
+a task tagged `blog` — title + the entry that sparked it + a done flag —
+so `list_tasks(tag="blog")` is the sortable, checkable list. (A read-only
+"blog-angle miner" was prototyped and dropped: it couldn't mark items complete
+or curate a list, which is the whole point. The `blog_angles` entry field stays
+as the in-the-moment seed; promoting a seed to a tracked topic is one
+`add_task`.)
+
+## Deliberately out of 0.1.0
+
+**Decision:** Two would-be features are intentionally not built for 0.1.0, and
+the parser is extended only reactively:
+
+- **Incremental index updates.** The SQLite/FTS index is rebuilt in full
+  whenever a source's content signature changes. That is correct and fast at
+  journal scale (thousands of entries); an incremental updater is a premature
+  optimization, deferred until profiling shows the full rebuild is a real
+  bottleneck.
+- **Speculative intake formats.** The parser handles the formats actually seen
+  (the founding journal's three eras). New formats are added when one is
+  encountered — each with a fixture reproducing it — not guessed at ahead of
+  demand.
+- **Cross-journal correlation queries.** No dedicated tool. The valuable form —
+  entries from several journals in a shared time window (UC4) — is already
+  served by composing `search_journal` (journal + date filters) with
+  `entries_over_time`. Statistical temporal correlation, by contrast, is a
+  quantified-self technique for numeric streams; on a handful of prose entries
+  per period it isn't meaningful. Prior art agrees: PKM tools surface
+  cross-source patterns through a shared date axis and shared tags, not
+  correlation math.
+
+(Semantic search / embeddings is excluded separately; see "FTS5 first,
+embeddings later".)
+
+**Rationale:** "Build it right or cut it." The index is *complete* as a full
+rebuild, and there is nothing concrete to build for formats not yet seen — so
+both are terminal decisions, not deferred backlog. Recorded so the exclusions
+are deliberate and don't quietly reappear as open work.
+
 ## Named `ai-journal`
 
 **Decision:** Package and repo are `ai-journal`, joining `ai-launcher` and
