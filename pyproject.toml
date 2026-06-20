@@ -7,7 +7,7 @@ build-backend = "hatchling.build"
 # CLI command, import, repo — is `ai-journal-mcp` / `ai_journal_mcp`.
 [project]
 name = "ai-journal-mcp"
-version = "0.1.0"
+version = "0.2.0"
 description = "Journal engine and MCP server: capture, structure, and ask questions of your work journals"
 readme = "README.md"
 license = "MIT"
