@@ -25,7 +25,10 @@ first hit this bug pattern?"
 
 **Flow:** `search_journal` (ranked FTS with theme/journal/date filters) →
 `get_entry` for full text. `entries_over_time` and `list_themes` give the
-shape of activity; the LLM synthesizes across hits.
+shape of activity; the LLM synthesizes across hits. An entry's `tags` are
+folded into its searchable text, so a free-text query for a tag surfaces the
+entries that carry it even when the word never appears in the prose — the same
+way task tags are searchable.
 
 **Why it matters:** This is the end goal — the journal as raw material for
 blog posts, talks, self-reflection, and not repeating old mistakes. A journal

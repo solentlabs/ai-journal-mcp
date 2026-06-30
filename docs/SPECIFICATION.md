@@ -135,7 +135,11 @@ destroys text. Rescue is idempotent.
 SQLite at `~/.local/share/ai-journal-mcp/index.db` (CLI accepts `--db`).
 Tables: `entries` (journal, date, title, theme, source, line, body, `kind`) +
 `entries_fts` (FTS5, external content). Rebuilt from scratch on `reindex`;
-deleting the file is always safe. `theme` is the entry's first theme.
+deleting the file is always safe. `theme` is the entry's first theme. An
+entry's `tags` are folded into its searchable body (the `entries.body` column
+keeps the raw body), so "ai-drift" matches an entry tagged `ai-drift` even when
+the word is absent from the prose; themes stay queryable via the `theme=`
+filter rather than the body.
 
 **Both kinds are indexed.** `kind` is `entry` or `task`. Tasks from managed
 journals are indexed alongside entries so `search_journal` spans them; a task's

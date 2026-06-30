@@ -100,9 +100,13 @@ def build_index(
                     entry.body,
                 ),
             )
+            # tags folded into the searchable body (the entries table keeps the
+            # raw body) so "ai-drift" finds an entry tagged ai-drift — symmetric
+            # with tasks below
+            fts_body = "\n".join(filter(None, [entry.body, " ".join(entry.tags)]))
             conn.execute(
                 "INSERT INTO entries_fts (rowid, title, body) VALUES (?,?,?)",
-                (cur.lastrowid, entry.title or "", entry.body),
+                (cur.lastrowid, entry.title or "", fts_body),
             )
             conn.executemany(
                 "INSERT INTO entry_themes (entry_id, theme) VALUES (?,?)",

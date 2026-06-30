@@ -81,6 +81,30 @@ def test_all_themes_indexed_not_just_primary(tmp_path):
     assert set(suggest_themes(db, "parser blog")) == {"parser", "blog"}
 
 
+def test_entry_tags_are_searchable(tmp_path):
+    # Tags live only in frontmatter, never in the title/body. They must still be
+    # findable by search — symmetric with how a task's tags are folded into its
+    # searchable body (regression: entry tags were parsed but dropped from the
+    # index, so tag-based retrieval silently failed for entries).
+    db = tmp_path / "idx.db"
+    entry = Entry(
+        date=date(2026, 1, 1),
+        title="Dependency currency check",
+        body="floors sit at HA's pins",
+        source_file=Path("x.md"),
+        source_line=1,
+        header_level=2,
+        tags=["ai-drift", "home-assistant"],
+    )
+    build_index(db, [("tech", entry)])
+    # the tag words appear nowhere in title/body, yet search finds the entry
+    # (hyphenated tags also exercise the FTS-query sanitizer)
+    assert [r["title"] for r in search(db, "ai-drift")] == ["Dependency currency check"]
+    assert [r["title"] for r in search(db, "home-assistant")] == ["Dependency currency check"]
+    # a tag that was never applied still must not match
+    assert search(db, "unused-tag") == []
+
+
 def test_search_handles_hyphenated_terms(tmp_path):
     # A hyphenated bareword (e.g. "fleet-relative") must not leak a raw
     # FTS5/SQLite error, and must still match the entry that contains it.
