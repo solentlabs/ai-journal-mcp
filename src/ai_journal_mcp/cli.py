@@ -14,14 +14,14 @@ from .parser import parse_file
 from .store import init_journal, is_managed, load_managed
 
 
-def _collect_entries(roots: list[Path]) -> list[tuple[str, Entry]]:
+def _collect_entries(roots: list[Path], skipped: list[str] | None = None) -> list[tuple[str, Entry]]:
     pairs: list[tuple[str, Entry]] = []
     for root in roots:
         name = root.stem if root.is_file() else root.name
         if root.is_file():
             pairs.extend((name, e) for e in parse_file(root))
         elif is_managed(root):
-            pairs.extend((name, e) for e in load_managed(root))
+            pairs.extend((name, e) for e in load_managed(root, skipped=skipped))
         else:
             pairs.extend((name, e) for e in scan_journal(root).all_entries)
     return pairs
@@ -75,7 +75,7 @@ def _consolidate(args: argparse.Namespace) -> int:
 def _init(args: argparse.Namespace) -> int:
     try:
         root, registered = init_journal(args.path, name=args.name)
-    except FileExistsError as exc:
+    except (FileExistsError, ValueError) as exc:
         print(exc)
         return 1
     label = args.name or root.name
@@ -85,6 +85,57 @@ def _init(args: argparse.Namespace) -> int:
     else:
         print(f"A journal named '{label}' is already configured — left it unchanged")
     print("Capture with the add_entry tool, or run `ai-journal-mcp serve` for the MCP.")
+    return 0
+
+
+def _reindex(args: argparse.Namespace) -> int:
+    from .tasks import load_tasks
+
+    skips: list[str] = []
+    pairs = _collect_entries(args.roots, skipped=skips)
+    # tasks are indexed too (spec §7) — the CLI must not build a poorer
+    # index than the server would; only managed journals have tasks
+    task_pairs = [
+        (root.name, t)
+        for root in args.roots
+        if root.is_dir() and is_managed(root)
+        for t in load_tasks(root, skipped=skips)
+    ]
+    count = build_index(args.db, pairs, task_pairs)
+    print(f"Indexed {count} entries into {args.db}")
+    for skip in skips:
+        print(f"WARNING: skipped {skip}")
+    return 0
+
+
+def _refresh(args: argparse.Namespace) -> int:
+    from .migrate import refresh_views
+
+    skips: list[str] = []
+    count, rescued = refresh_views(args.root, skipped=skips)
+    if rescued:
+        print(f"Rescued {rescued} hand-added entries from JOURNAL.md into entries/")
+    print(f"Regenerated views for {count} entries")
+    for skip in skips:
+        print(f"WARNING: skipped {skip} — views omit it until fixed")
+    return 0
+
+
+def _serve() -> int:
+    try:
+        from .server import main as serve_main
+    except ImportError as exc:
+        # only claim "missing extra" when mcp itself is what's missing —
+        # any other import failure deserves its real traceback
+        missing = getattr(exc, "name", "") or ""
+        if missing == "mcp":
+            print("The MCP server needs the [server] extra: pip install 'ai-journal-mcp[server]'")
+            return 1
+        if missing.startswith("mcp."):
+            print(f"Installed mcp package is incompatible ({missing} not importable) — need mcp>=1.0,<2")
+            return 1
+        raise
+    serve_main()
     return 0
 
 
@@ -155,20 +206,11 @@ def main(argv: list[str] | None = None) -> int:
     elif args.command == "consolidate":
         return _consolidate(args)
     elif args.command == "reindex":
-        pairs = _collect_entries(args.roots)
-        count = build_index(args.db, pairs)
-        print(f"Indexed {count} entries into {args.db}")
+        return _reindex(args)
     elif args.command == "refresh":
-        from .migrate import refresh_views
-
-        count, rescued = refresh_views(args.root)
-        if rescued:
-            print(f"Rescued {rescued} hand-added entries from JOURNAL.md into entries/")
-        print(f"Regenerated views for {count} entries")
+        return _refresh(args)
     elif args.command == "serve":
-        from .server import main as serve_main
-
-        serve_main()
+        return _serve()
     elif args.command == "search":
         return _search(args)
     return 0

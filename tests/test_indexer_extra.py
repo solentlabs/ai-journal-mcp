@@ -1,13 +1,29 @@
 from datetime import date
 from pathlib import Path
 
-from ai_journal_mcp.indexer import build_index, entries_over_time, list_themes, search, suggest_themes
+import pytest
+
+from ai_journal_mcp.indexer import (
+    build_index,
+    entries_over_time,
+    list_themes,
+    read_signatures,
+    search,
+    suggest_themes,
+)
 from ai_journal_mcp.model import Entry
 
 
-def make_entry(d, title, body, themes=None):
+def make_entry(d, title, body, themes=None, tags=None):
     return Entry(
-        date=d, title=title, body=body, source_file=Path("x.md"), source_line=1, header_level=2, themes=themes or []
+        date=d,
+        title=title,
+        body=body,
+        source_file=Path("x.md"),
+        source_line=1,
+        header_level=2,
+        themes=themes or [],
+        tags=tags or [],
     )
 
 
@@ -119,3 +135,45 @@ def test_search_handles_hyphenated_terms(tmp_path):
     assert [r["title"] for r in search(db, "fleet-relative")] == ["Moat Note"]
     # ...and the same term must survive inside a boolean expression.
     assert "Moat Note" in [r["title"] for r in search(db, "moat OR fleet-relative")]
+
+
+@pytest.mark.parametrize("bad", ["", "   ", 'unclosed "quote', "a AND", "(", "NOT", '"'])
+def test_malformed_query_raises_clear_valueerror(tmp_path, bad):
+    # regression: these reached FTS5 raw and crashed search_journal with an
+    # uncaught sqlite3.OperationalError from the middle of the query
+    db = make_db(tmp_path)
+    with pytest.raises(ValueError, match="query"):
+        search(db, bad)
+
+
+def test_valid_operator_queries_still_work(tmp_path):
+    db = make_db(tmp_path)
+    assert len(search(db, "hnap OR pytest")) == 3
+    assert [r["title"] for r in search(db, '"hnap auth"')] == ["Modem Fix"]
+
+
+def test_corrupt_index_reads_as_stale(tmp_path):
+    # regression: a truncated/garbage index.db raised sqlite3.DatabaseError
+    # instead of reading as stale, wedging every call until hand-deleted
+    db = tmp_path / "idx.db"
+    db.write_bytes(b"this is not a sqlite database")
+    assert read_signatures(db) == {}
+
+
+def test_entries_over_time_tag_filter(tmp_path):
+    # receipts workflow: entries labelled with a recurring tag get a
+    # frequency-over-time view, same as themes
+    db = tmp_path / "idx.db"
+    build_index(
+        db,
+        [
+            ("tech", make_entry(date(2026, 1, 5), "R1", "meeting ran long", tags=["receipt"])),
+            ("tech", make_entry(date(2026, 3, 2), "R2", "meeting ran long again", tags=["receipt"])),
+            ("tech", make_entry(date(2026, 3, 9), "Other", "unrelated body")),
+        ],
+    )
+    assert entries_over_time(db, tag="receipt") == [
+        {"month": "2026-01", "entries": 1},
+        {"month": "2026-03", "entries": 1},
+    ]
+    assert entries_over_time(db, tag="absent") == []

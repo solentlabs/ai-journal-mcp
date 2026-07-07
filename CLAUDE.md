@@ -41,7 +41,8 @@
   `.venv/bin/pytest -q`, `.venv/bin/ai-journal-mcp ...`. Setup: `./scripts/setup.sh`.
   Full guide in `docs/DEVELOPMENT.md`.
 - Before declaring work done, run `make check` (lint + format-check +
-  type-check + full suite with coverage). It must be green.
+  type-check + docs lint + full suite with coverage; the docs lint needs
+  Node/npm). It must be green.
 - Ruff is the single linter/formatter and mypy the type authority; all tool
   config lives in `pyproject.toml`. Don't add competing config files.
 - New behavior requires tests. Test data is fixture-based, not inline:

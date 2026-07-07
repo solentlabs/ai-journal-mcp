@@ -49,15 +49,26 @@ what intake exists to clean up.
 
 ## Dedup keeps the longest body and merges themes
 
-**Decision:** Migration groups entries by `(date, title-slug)`; the longest
-body survives, group themes are unioned, every drop is logged, and originals
-stay in `attic/`.
+**Decision:** Migration groups **titled** entries by `(date, title-slug)`; the
+longest body survives, group themes are unioned, every drop is logged, and
+originals stay in `attic/`. **Title-less** entries group by `(date, exact
+normalized-body hash)` instead — two different date-only session logs on the
+same day are never merged, only byte-identical copies are.
 
 **Rationale:** The observed duplication pattern was copy-on-archive (the old
 rollover copied entries into themed files without removing the index copy),
 where copies diverge by truncation, not contradiction — longest body is the
-information-preserving choice. Because originals are never deleted, a wrong
-dedup choice is recoverable, which is what allows it to be automatic at all.
+information-preserving choice. Title-less entries carry no title signal at
+all, so "same day" alone is not identity — hence the exact-body rule for
+them. Because originals are never deleted, a wrong dedup choice is
+recoverable, which is what allows it to be automatic at all.
+
+**Kept deliberately:** `migrate --apply` auto-merges the same-day same-title
+"near duplicates" that the dry-run report flags for human review, without a
+per-group confirmation step. The dry run *is* the review gate; adding an
+interactive confirm loop would complicate the one-shot migration for a case
+that is fully recoverable from `attic/` and logged per-decision in
+`migration-report.md`.
 
 ## Attic over deletion
 
@@ -195,7 +206,8 @@ and the journal views act empty, defeating the recall the tool exists for. The
 index is disposable and rebuilt wholesale, so adding tasks to it costs nothing
 structurally and makes "one place, searchable" actually true. Tasks remain
 mutated through their files (the index never owns them); it only mirrors them
-for search.
+for search. CLI `reindex` indexes tasks the same way — the CLI must not build
+a poorer index than the server would.
 
 ## Deliberately out of 0.1.0
 
@@ -227,6 +239,50 @@ embeddings later".)
 rebuild, and there is nothing concrete to build for formats not yet seen — so
 both are terminal decisions, not deferred backlog. Recorded so the exclusions
 are deliberate and don't quietly reappear as open work.
+
+## Concurrency: lock the read-modify-writes, make everything else atomic
+
+**Decision:** Every write goes through `fsio.py`: finished files are written
+to a temp path and `os.replace`d (entries, tasks, views, `journals.toml`, the
+index); new entry files are claimed with an atomic exclusive create (two
+sessions writing the same date+title land in two files); and the two
+read-modify-write sequences — task updates and view regeneration — run under
+an exclusive flock on `<journal>/.lock`. The index is never mutated in place:
+a rebuild produces a complete temp database and swaps it in, with staleness
+signatures computed *before* loading sources and committed in the same
+transaction. No daemon, no global lock, no lock for readers.
+
+**Rationale:** The real deployment is several MCP sessions (one process each)
+plus the CLI on one journal. Atomicity alone fixes crash-truncation and
+readers seeing half-written files, but not lost updates: `get_task` → think →
+`update_task` is a wide window in which another session's field changes would
+be silently dropped, and tasks have no attic — that loss is unrecoverable,
+which is what justifies a lock. Scoping the lock to one journal's mutations
+keeps readers lock-free and the failure surface small; flock self-releases on
+process death, so a crashed session can't wedge the journal. Windows has no
+flock — there the lock degrades to a no-op and the atomic-write guarantees
+remain (documented, acceptable for a POSIX-first tool).
+
+## Known limitations, accepted deliberately
+
+Recorded so they read as decisions, not oversights. Each is cut until real
+usage says otherwise:
+
+- **Exotic code fences can confuse the parser** (four-plus backticks, `~~~`
+  inside a backtick fence). Fix ships with a fixture when a real journal
+  hits it — per the reactive-parser rule above. Noted in SPECIFICATION §3.
+- **`get_entry` on a single-file journal exposes the file's siblings** (the
+  containment root is the file's parent directory). Single-user local tool;
+  configure a dedicated directory if it matters. Noted in ARCHITECTURE.
+- **Search snippets can mis-highlight when the match is in a folded-in tag**
+  (FTS positions are computed over body+tags, snippets render from the body).
+  Cosmetic; the hit itself is correct.
+- **Unix-convention paths on Windows** (`~/.config`, `~/.local/share`).
+  Works via `expanduser()`; `platformdirs` is not worth a dependency until a
+  Windows user exists.
+- **A frontmatter `date:` carrying a time component is stored verbatim**
+  (`YYYY-MM-DDTHH:MM:SS`), which makes that entry compare oddly against
+  `since`/`until` day bounds. Tool-written entries never do this.
 
 ## Named `ai-journal-mcp` (was `ai-journal`)
 

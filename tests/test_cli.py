@@ -112,3 +112,76 @@ def test_cli_serve_invokes_server_main(monkeypatch):
     monkeypatch.setattr(server, "main", lambda: called.setdefault("ran", True))
     assert main(["serve"]) == 0
     assert called["ran"] is True
+
+
+def test_cli_reindex_includes_tasks(make_journal, tmp_path, capsys):
+    # regression: the CLI built a task-less index while the server's included
+    # them — spec §7 says both kinds are indexed, whoever builds it
+    from ai_journal_mcp.indexer import search
+    from ai_journal_mcp.tasks import create_task
+
+    root = make_journal({"entries/2026-06/01-note.md": "---\ndate: '2026-06-01'\ntitle: Note\n---\n\nentry body\n"})
+    create_task(root, "Write the blog post", body="draft the staleness story")
+    db = tmp_path / "idx.db"
+    assert main(["reindex", str(root), "--db", str(db)]) == 0
+    assert "Indexed 2 entries" in capsys.readouterr().out
+    rows = search(db, "staleness")
+    assert rows and rows[0]["kind"] == "task"
+
+
+def test_cli_serve_without_server_extra_gives_hint(monkeypatch, capsys):
+    # a CLI-only install (no [server] extra) must say how to fix it, not
+    # die with a raw ModuleNotFoundError from inside the import
+    import sys as _sys
+
+    class _NoMcp:
+        # faithful "pip install ai-journal-mcp" (no extra): mcp is absent
+        def find_spec(self, fullname, path=None, target=None):
+            if fullname == "mcp" or fullname.startswith("mcp."):
+                raise ModuleNotFoundError("No module named 'mcp'", name="mcp")
+            return
+
+    for mod in [m for m in _sys.modules if m == "mcp" or m.startswith("mcp.") or m == "ai_journal_mcp.server"]:
+        monkeypatch.delitem(_sys.modules, mod)
+    monkeypatch.setattr(_sys, "meta_path", [_NoMcp(), *_sys.meta_path])
+    assert main(["serve"]) == 1
+    assert "ai-journal-mcp[server]" in capsys.readouterr().out
+
+
+def test_cli_reindex_ignores_tasks_in_raw_directories(make_journal, tmp_path, capsys):
+    # regression: task loading had no is_managed guard and scan didn't skip
+    # tasks/, so a raw directory's task files could be indexed twice
+    from ai_journal_mcp.indexer import search
+
+    root = make_journal(
+        {
+            "log.md": "## 2026-06-01: Real Entry\n\nsearchable prose\n",
+            "tasks/note.md": "---\ntitle: Not an entry\n---\n\n## 2026-06-02: Sneaky\n\ntask body text\n",
+        }
+    )
+    db = tmp_path / "idx.db"
+    assert main(["reindex", str(root), "--db", str(db)]) == 0
+    assert "Indexed 1 entries" in capsys.readouterr().out
+    assert search(db, "sneaky OR task") == []  # raw-dir tasks/ is tool-owned, not content
+
+
+def test_cli_serve_incompatible_mcp_names_the_real_problem(monkeypatch, capsys):
+    # an installed-but-wrong mcp (missing the fastmcp path) must not be
+    # blamed on the [server] extra being absent
+    import sys as _sys
+    import types
+
+    for mod in [m for m in _sys.modules if m == "mcp" or m.startswith("mcp.") or m == "ai_journal_mcp.server"]:
+        monkeypatch.delitem(_sys.modules, mod)
+    fake_mcp = types.ModuleType("mcp")  # no server attribute, not a package
+    monkeypatch.setitem(_sys.modules, "mcp", fake_mcp)
+    assert main(["serve"]) == 1
+    out = capsys.readouterr().out
+    assert "incompatible" in out
+    assert "[server] extra" not in out
+
+
+def test_cli_init_rejects_control_character_names(tmp_path, monkeypatch, capsys):
+    monkeypatch.setattr(config, "DEFAULT_CONFIG", tmp_path / "journals.toml")
+    assert main(["init", str(tmp_path / "j"), "--name", "bad\nname"]) == 1
+    assert "control characters" in capsys.readouterr().out

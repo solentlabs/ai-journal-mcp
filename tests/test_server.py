@@ -53,6 +53,24 @@ def test_stale_index_self_heals(journals):
     assert server.search_journal("latecomer")[0]["title"] == "Latecomer Entry"
 
 
+def test_hand_edited_entry_goes_stale(journals):
+    # markdown is the source of truth however it got there: an edit made
+    # directly to a file under entries/ (no tool, no refresh) must be picked
+    # up by the next search, not served stale forever
+    server.reindex()
+    [entry_file] = (journals / "entries").rglob("*.md")
+    entry_file.write_text(entry_file.read_text(encoding="utf-8") + "\nhand-edited addendum\n", encoding="utf-8")
+    assert server.search_journal("addendum")[0]["title"] == "Seed Entry"
+
+
+def test_corrupt_index_self_heals(journals):
+    # regression: garbage in index.db raised sqlite3.DatabaseError on every
+    # tool call instead of reading as stale and triggering a rebuild
+    server.reindex()
+    server.DEFAULT_DB.write_bytes(b"garbage, not sqlite")
+    assert server.search_journal("hnap")[0]["title"] == "Seed Entry"
+
+
 def test_get_entry_inside_and_outside(journals, tmp_path):
     hit = server.search_journal("hnap")[0]
     assert "hnap discovery notes" in server.get_entry(hit["source"])
@@ -218,3 +236,74 @@ def test_new_task_makes_index_stale_and_self_heals(journals):
     assert server.search_journal("xylophone") == []
     server.add_task("technical", "Buy a xylophone", body="odd instrument")
     assert server.search_journal("xylophone")[0]["kind"] == "task"
+
+
+def test_index_is_disposable_rebuild_is_identical(journals):
+    # delete the DB outright: every tool must return identical results from
+    # the auto-rebuilt index (markdown is the source of truth)
+    server.reindex()
+    before = (
+        server.search_journal("hnap"),
+        server.list_themes(),
+        server.entries_over_time(),
+    )
+    server.DEFAULT_DB.unlink()
+    after = (
+        server.search_journal("hnap"),
+        server.list_themes(),
+        server.entries_over_time(),
+    )
+    assert after == before
+
+
+def test_entries_over_time_by_tag(journals):
+    server.add_entry("technical", "Meeting overran", "again, by 40 minutes", tags=["receipt"], entry_date="2026-06-15")
+    assert server.entries_over_time(tag="receipt") == [{"month": "2026-06", "entries": 1}]
+
+
+def test_add_entry_surfaces_skipped_malformed_files(journals):
+    # regression: a malformed entry silently vanished from views/search; the
+    # skip must reach the tool result, not just the server's stderr
+    (journals / "entries" / "2026-06" / "broken.md").write_text("---\ntitle: unclosed\n", encoding="utf-8")
+    result = server.add_entry("technical", "New One", "body text", entry_date="2026-06-20")
+    assert "WARNING" in result and "broken.md" in result
+    assert "Indexed" not in result  # path is still the first line
+    assert "WARNING" in server.reindex()
+
+
+def test_list_tasks_surfaces_broken_task_files(journals):
+    server.add_task("technical", "Fine Task")
+    (journals / "tasks" / "mangled.md").write_text("---\ntitle: unclosed\n", encoding="utf-8")
+    listed = server.list_tasks()
+    assert [t["title"] for t in listed if "title" in t] == ["Fine Task"]
+    [warning] = [t["warning"] for t in listed if "warning" in t]
+    assert "mangled.md" in warning
+
+
+def test_indexed_dir_with_entries_subfolder_stays_fresh(tmp_path, monkeypatch):
+    # regression: source_signature keyed "managed" off the entries/ dir alone,
+    # so an indexed-mode tree containing entries/ was fingerprinted over files
+    # the scanner ignores — edits outside entries/ never read as stale
+    src = tmp_path / "notes"
+    (src / "entries").mkdir(parents=True)  # formerly-managed leftovers
+    (src / "scratch.md").write_text("## 2026-06-01\n\nalpha note\n")
+    monkeypatch.setattr(server, "load_config", lambda: [JournalSource("notes", src, "indexed")])
+    monkeypatch.setattr(server, "DEFAULT_DB", tmp_path / "idx.db")
+
+    assert server.search_journal("alpha")
+    (src / "scratch.md").write_text("## 2026-06-01\n\nalpha note, now about beta too\n")
+    assert server.search_journal("beta")  # edit outside entries/ detected
+
+
+def test_old_schema_index_rebuilds_instead_of_crashing(journals):
+    # regression: a 0.2.0-era index (no entry_tags table) passed the signature
+    # check and crashed the tag filter; the schema stamp must force a rebuild
+    import sqlite3
+
+    server.add_entry("technical", "Tagged", "receipt body", tags=["receipt"], entry_date="2026-06-21")
+    conn = sqlite3.connect(server.DEFAULT_DB)
+    conn.execute("DROP TABLE entry_tags")
+    conn.execute("PRAGMA user_version = 0")  # what an older release wrote
+    conn.commit()
+    conn.close()
+    assert server.entries_over_time(tag="receipt") == [{"month": "2026-06", "entries": 1}]

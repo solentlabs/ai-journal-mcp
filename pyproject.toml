@@ -7,7 +7,7 @@ build-backend = "hatchling.build"
 # CLI command, import, repo — is `ai-journal-mcp` / `ai_journal_mcp`.
 [project]
 name = "ai-journal-mcp"
-version = "0.2.0"
+dynamic = ["version"]  # single bump site: __version__ in src/ai_journal_mcp/__init__.py
 description = "Journal engine and MCP server: capture, structure, and ask questions of your work journals"
 readme = "README.md"
 license = "MIT"
@@ -35,7 +35,9 @@ dependencies = [
 
 [project.optional-dependencies]
 server = [
-    "mcp>=1.0",
+    # upper bound: the SDK moves fast and server.py depends on the
+    # mcp.server.fastmcp import path — revisit on the mcp 2.x release
+    "mcp>=1.0,<2",
 ]
 dev = [
     "pytest>=8.0",
@@ -53,8 +55,29 @@ ai-journal-mcp = "ai_journal_mcp.cli:main"
 Homepage = "https://github.com/solentlabs/ai-journal-mcp"
 Issues = "https://github.com/solentlabs/ai-journal-mcp/issues"
 
+[tool.hatch.version]
+path = "src/ai_journal_mcp/__init__.py"
+
 [tool.hatch.build.targets.wheel]
 packages = ["src/ai_journal_mcp"]
+
+[tool.hatch.build.targets.sdist]
+# The sdist is for building the package, not a repo snapshot: keep editor
+# config, Claude/session files, and doc-lint tooling out of it.
+exclude = [
+    ".claude",
+    ".vscode",
+    ".editorconfig",
+    ".pre-commit-config.yaml",
+    ".markdownlint-cli2.jsonc",
+    ".markdownlintignore",
+    "cspell.config.yaml",
+    "package.json",
+    "scripts",
+    "skills",
+    "Makefile",
+    "CLAUDE.md",
+]
 
 # ---------------------------------------------------------------------------
 # Ruff — single tool for linting AND formatting (SSOT for code style).

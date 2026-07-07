@@ -6,6 +6,8 @@ import tomllib
 from dataclasses import dataclass
 from pathlib import Path
 
+from .fsio import write_text_atomic
+
 DEFAULT_CONFIG = Path("~/.config/ai-journal-mcp/journals.toml").expanduser()
 DEFAULT_DB = Path("~/.local/share/ai-journal-mcp/index.db").expanduser()
 
@@ -36,6 +38,17 @@ def load_config(config_path: Path | None = None) -> list[JournalSource]:
     return sources
 
 
+def _toml_str(value: str) -> str:
+    """Quote a value as a TOML basic string (a quote or backslash in a journal
+    name/path must not corrupt journals.toml — every later load would fail).
+    Control characters are rejected outright: TOML basic strings forbid them,
+    and a journal named with an embedded newline is a mistake, not a case to
+    round-trip."""
+    if any(ord(ch) < 0x20 or ord(ch) == 0x7F for ch in value):
+        raise ValueError(f"journal name/path may not contain control characters: {value!r}")
+    return '"' + value.replace("\\", "\\\\").replace('"', '\\"') + '"'
+
+
 def add_journal(
     name: str,
     path: Path,
@@ -56,6 +69,6 @@ def add_journal(
     else:
         cfg.parent.mkdir(parents=True, exist_ok=True)
         prefix = ""
-    stanza = f'[[journal]]\nname = "{name}"\npath = "{path}"\nmode = "{mode}"\n'
-    cfg.write_text(prefix + stanza, encoding="utf-8")
+    stanza = f"[[journal]]\nname = {_toml_str(name)}\npath = {_toml_str(str(path))}\nmode = {_toml_str(mode)}\n"
+    write_text_atomic(cfg, prefix + stanza)
     return True

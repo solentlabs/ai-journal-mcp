@@ -24,5 +24,6 @@ package-lock.json
 *.db
 *.sqlite3
 
-# Project-local Claude memory
+# Project-local Claude memory and per-user session settings
 .claude/memory/
+.claude/settings.local.json

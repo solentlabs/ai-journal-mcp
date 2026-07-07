@@ -16,13 +16,26 @@ permissions:
 
 jobs:
   build:
-    name: Build sdist + wheel
+    name: Verify, test, build sdist + wheel
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+      - name: Verify tag matches package version
+        # a stale bump otherwise fails only at (or worse, after) PyPI upload
+        run: |
+          version=$(python -c "exec(open('src/ai_journal_mcp/__init__.py').read()); print(__version__)")
+          if [ "v$version" != "$GITHUB_REF_NAME" ]; then
+            echo "::error::tag $GITHUB_REF_NAME does not match package version $version"
+            exit 1
+          fi
+      - name: Run test suite
+        # never publish a commit whose tests didn't run on exactly this ref
+        run: |
+          python -m pip install -e ".[server,dev]"
+          python -m pytest -q
       - name: Build distributions
         run: |
           python -m pip install --upgrade build

@@ -1,7 +1,10 @@
+from datetime import date
+
 import pytest
 
 from ai_journal_mcp import server
 from ai_journal_mcp.config import JournalSource
+from ai_journal_mcp.store import write_entry
 from ai_journal_mcp.tasks import (
     TaskError,
     create_task,
@@ -42,6 +45,26 @@ def test_invalid_fields_rejected(tmp_path):
 def test_missing_task(tmp_path):
     with pytest.raises(TaskError):
         get_task(tmp_path, "nope")
+
+
+@pytest.mark.parametrize(
+    "bad_id",
+    ["../entries/2026-07/01-note", "/tmp/evil", "sub/task", "a\\b", "..", ".hidden", ""],
+)
+def test_path_like_task_ids_rejected(tmp_path, bad_id):
+    with pytest.raises(TaskError, match="invalid task id"):
+        get_task(tmp_path, bad_id)
+
+
+def test_update_task_cannot_rewrite_entry_files(tmp_path):
+    # regression: a path-like id escaped tasks/ and rewrote the entry file in
+    # place, replacing its frontmatter and dropping it from views and index
+    path = write_entry(tmp_path, date(2026, 7, 1), "My Note", "precious text")
+    before = path.read_text(encoding="utf-8")
+    stem = str(path.relative_to(tmp_path))[:-3]
+    with pytest.raises(TaskError, match="invalid task id"):
+        update_task(tmp_path, f"../{stem}", status="done")
+    assert path.read_text(encoding="utf-8") == before
 
 
 def test_ready_depends_on_blockers(tmp_path):
@@ -148,3 +171,44 @@ def test_tool_surfaces_task_error_as_valueerror(managed):
     # tasks.TaskError (bad priority) is surfaced to the caller as ValueError.
     with pytest.raises(ValueError, match="priority"):
         server.add_task("tech", "bad", priority="urgent")
+
+
+def test_one_malformed_task_does_not_wedge_listing(tmp_path, caplog):
+    create_task(tmp_path, "Good Task")
+    (tmp_path / "tasks" / "broken.md").write_text("---\ntitle: unclosed\n", encoding="utf-8")
+    with caplog.at_level("WARNING"):
+        tasks = load_tasks(tmp_path)
+    assert [t.title for t in tasks] == ["Good Task"]
+    assert "broken.md" in caplog.text
+    with pytest.raises(TaskError, match="broken.md"):
+        get_task(tmp_path, "broken")
+
+
+def test_rejected_update_writes_no_orphan_entry(tmp_path):
+    # regression: the reflection entry was written before validation, so a
+    # rejected update left an entry on disk outside views and index
+    t = create_task(tmp_path, "Audit")
+    with pytest.raises(TaskError, match="status"):
+        update_task(tmp_path, t.id, status="bogus", reflection="orphan text")
+    entries_dir = tmp_path / "entries"
+    assert not entries_dir.exists() or list(entries_dir.rglob("*.md")) == []
+    assert get_task(tmp_path, t.id).status == "open"  # untouched
+
+
+def test_task_writes_leave_no_temp_files(tmp_path):
+    t = create_task(tmp_path, "Tidy")
+    update_task(tmp_path, t.id, status="done")
+    leftovers = [p for p in (tmp_path / "tasks").iterdir() if p.suffix == ".tmp"]
+    assert leftovers == []
+
+
+@pytest.mark.parametrize("edge_id", ["_inbox", "-lead", "v1.2-upgrade"])
+def test_hand_made_task_ids_stay_reachable(tmp_path, edge_id):
+    # regression: ids listed by load_tasks must be addressable by get_task —
+    # the first-char rule locked out hand-made files like tasks/_inbox.md
+    tasks_dir = tmp_path / "tasks"
+    tasks_dir.mkdir()
+    (tasks_dir / f"{edge_id}.md").write_text("---\ntitle: Edge\nstatus: open\npriority: low\n---\n\nbody\n")
+    assert [t.id for t in load_tasks(tmp_path)] == [edge_id]
+    assert get_task(tmp_path, edge_id).title == "Edge"
+    assert update_task(tmp_path, edge_id, status="done").status == "done"

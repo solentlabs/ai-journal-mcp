@@ -3,7 +3,7 @@
 [![PyPI](https://img.shields.io/pypi/v/ai-journal-mcp)](https://pypi.org/project/ai-journal-mcp/)
 [![Python](https://img.shields.io/pypi/pyversions/ai-journal-mcp)](https://pypi.org/project/ai-journal-mcp/)
 [![CI](https://github.com/solentlabs/ai-journal-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/solentlabs/ai-journal-mcp/actions/workflows/ci.yml)
-[![License: MIT](https://img.shields.io/pypi/l/ai-journal-mcp)](LICENSE)
+[![License: MIT](https://img.shields.io/pypi/l/ai-journal-mcp)](https://github.com/solentlabs/ai-journal-mcp/blob/main/LICENSE)
 
 **A local MCP server for journaling, organizing, recalling, and tracking your work.**
 Capture what each session taught you, let it organize into a clean, queryable
@@ -132,20 +132,22 @@ ai-journal-mcp refresh ~/journal             # regenerate JOURNAL.md + theme vie
 
 | Doc | Contents |
 |-----|----------|
-| [docs/USE_CASES.md](docs/USE_CASES.md) | What the product is for, case by case |
-| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Components, data flow, journal modes, trust boundaries |
-| [docs/SPECIFICATION.md](docs/SPECIFICATION.md) | Entry format, journals.toml, parser rules, tool/CLI contracts |
-| [docs/ARCHITECTURE_DECISIONS.md](docs/ARCHITECTURE_DECISIONS.md) | The "why" behind each design choice |
-| [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) | Dev environment setup, make targets, tooling, troubleshooting |
+| [docs/USE_CASES.md](https://github.com/solentlabs/ai-journal-mcp/blob/main/docs/USE_CASES.md) | What the product is for, case by case |
+| [docs/ARCHITECTURE.md](https://github.com/solentlabs/ai-journal-mcp/blob/main/docs/ARCHITECTURE.md) | Components, data flow, journal modes, concurrency, trust boundaries |
+| [docs/SPECIFICATION.md](https://github.com/solentlabs/ai-journal-mcp/blob/main/docs/SPECIFICATION.md) | Entry format, journals.toml, parser rules, tool/CLI contracts |
+| [docs/ARCHITECTURE_DECISIONS.md](https://github.com/solentlabs/ai-journal-mcp/blob/main/docs/ARCHITECTURE_DECISIONS.md) | The "why" behind each design choice |
+| [docs/DEVELOPMENT.md](https://github.com/solentlabs/ai-journal-mcp/blob/main/docs/DEVELOPMENT.md) | Dev environment setup, make targets, tooling, troubleshooting |
+
+(Absolute links so they work on the PyPI project page too.)
 
 ## Development
 
 ```bash
 ./scripts/setup.sh   # Python 3.11+: creates .venv, installs the package + dev tools
-make check           # lint + format-check + type-check + tests (the pre-push gate)
+make check           # lint + format-check + type-check + docs lint + tests (what CI runs)
 ```
 
-See [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) for the full guide.
+See [docs/DEVELOPMENT.md](https://github.com/solentlabs/ai-journal-mcp/blob/main/docs/DEVELOPMENT.md) for the full guide.
 
 ## License
 

@@ -36,7 +36,7 @@ def _managed_root(journal: str) -> Path:
 
 def _current_signatures() -> dict[str, str]:
     """Live content signature per configured source (add/edit/delete-sensitive)."""
-    return {src.name: indexer.source_signature(src.path) for src in _sources().values()}
+    return {src.name: indexer.source_signature(src.path, src.mode) for src in _sources().values()}
 
 
 def _ensure_index() -> Path:
@@ -48,17 +48,22 @@ def _ensure_index() -> Path:
     return DEFAULT_DB
 
 
-def _reindex() -> int:
+def _reindex(skipped: list[str] | None = None) -> int:
     sources = _sources()
+    # signatures are taken BEFORE loading: a write racing the build then reads
+    # as stale on the next call instead of being missed forever
+    signatures = {src.name: indexer.source_signature(src.path, src.mode) for src in sources.values()}
     pairs: list[tuple[str, Entry]] = []
     task_pairs: list[tuple[str, tasks.Task]] = []
     for src in sources.values():
-        pairs.extend((src.name, entry) for entry in load_source(src))
+        pairs.extend((src.name, entry) for entry in load_source(src, skipped=skipped))
         if src.mode == "managed":
-            task_pairs.extend((src.name, t) for t in tasks.load_tasks(src.path))
-    count = indexer.build_index(DEFAULT_DB, pairs, task_pairs)
-    indexer.write_signatures(DEFAULT_DB, {src.name: indexer.source_signature(src.path) for src in sources.values()})
-    return count
+            task_pairs.extend((src.name, t) for t in tasks.load_tasks(src.path, skipped=skipped))
+    return indexer.build_index(DEFAULT_DB, pairs, task_pairs, signatures=signatures)
+
+
+def _warning(skipped: list[str]) -> str:
+    return "WARNING: skipped malformed files (fix or remove them): " + "; ".join(skipped)
 
 
 @mcp.tool()
@@ -106,13 +111,17 @@ def add_entry(
     """Write a new entry to a managed journal and refresh its index/views.
 
     journal must be a configured source with mode='managed'. entry_date
-    defaults to today (YYYY-MM-DD). Returns the path of the new entry file.
+    defaults to today (YYYY-MM-DD). Returns the path of the new entry file
+    (plus a WARNING line if malformed files had to be skipped).
     """
     root = _managed_root(journal)
     when = date.fromisoformat(entry_date) if entry_date else date.today()
     path = write_entry(root, when, title, body, themes=themes, tags=tags, blog_angles=blog_angles)
-    refresh_views(root)
+    skipped: list[str] = []
+    refresh_views(root, skipped=skipped)
     _reindex()
+    if skipped:
+        return f"{path}\n{_warning(skipped)}"
     return str(path)
 
 
@@ -132,9 +141,11 @@ def suggest_themes(text: str, limit: int = 5) -> list[str]:
 
 
 @mcp.tool()
-def entries_over_time(theme: str | None = None, journal: str | None = None) -> list[dict]:
-    """Entries per month, optionally filtered by theme or journal — activity over time."""
-    return indexer.entries_over_time(_ensure_index(), theme=theme, journal=journal)
+def entries_over_time(theme: str | None = None, journal: str | None = None, tag: str | None = None) -> list[dict]:
+    """Entries per month, optionally filtered by theme, tag, or journal — activity
+    over time. Filtering by a recurring label answers "how often does this
+    keep happening?" — the frequency evidence behind a pattern."""
+    return indexer.entries_over_time(_ensure_index(), theme=theme, journal=journal, tag=tag)
 
 
 @mcp.tool()
@@ -207,9 +218,12 @@ def update_task(
         raise ValueError(str(exc)) from exc
     result: dict[str, object] = {"id": task.id, "status": task.status, "priority": task.priority, "tags": task.tags}
     if reflection is not None:
-        refresh_views(root)
+        skipped: list[str] = []
+        refresh_views(root, skipped=skipped)
         _reindex()
         result["entry"] = task.entries[-1] if task.entries else None
+        if skipped:
+            result["warning"] = _warning(skipped)
     return result
 
 
@@ -225,10 +239,11 @@ def list_tasks(
     backlog ("blog"), a project, a context. Each task carries `ready` (every
     blocker done), `tags`, and `entries` (paths to pull context with get_entry)."""
     out: list[dict] = []
+    skipped: list[str] = []
     for src in _sources().values():
         if src.mode != "managed" or (journal and src.name != journal):
             continue
-        loaded = tasks.load_tasks(src.path)
+        loaded = tasks.load_tasks(src.path, skipped=skipped)
         by_id = {t.id: t for t in loaded}
         for task in tasks.sorted_tasks(loaded):
             if (status and task.status != status) or (priority and task.priority != priority):
@@ -248,6 +263,9 @@ def list_tasks(
                     "ready": tasks.is_ready(task, by_id),
                 }
             )
+    if skipped:
+        # a broken task file must not read as a deleted task — say so in-band
+        out.append({"warning": _warning(skipped)})
     return out
 
 
@@ -274,8 +292,12 @@ def get_task(journal: str, task_id: str) -> dict:
 @mcp.tool()
 def reindex() -> str:
     """Rebuild the search index from the markdown sources."""
-    count = _reindex()
-    return f"Indexed {count} entries from {len(_sources())} journals"
+    skipped: list[str] = []
+    count = _reindex(skipped=skipped)
+    message = f"Indexed {count} entries from {len(_sources())} journals"
+    if skipped:
+        message += f"\n{_warning(skipped)}"
+    return message
 
 
 def main() -> None:

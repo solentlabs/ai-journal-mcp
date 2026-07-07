@@ -14,7 +14,7 @@ from pathlib import Path
 from .model import Entry
 from .parser import parse_file_with_fallback
 
-SKIP_DIRS = {".git", ".claude", "attic", "entries", "themes", "node_modules"}
+SKIP_DIRS = {".git", ".claude", "attic", "entries", "tasks", "themes", "node_modules"}
 
 
 # Source-file stem -> theme. Files not listed (JOURNAL.md, monthly archives)

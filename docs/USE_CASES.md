@@ -105,3 +105,22 @@ entries.
 **Why it matters:** Insights and intentions live together. The journal already
 holds *what you learned*; tasks add *what's left to do about it*, linked so the
 reasoning is one hop away when you resume.
+
+## UC8 — Build a case from recurring evidence ("receipts")
+
+**Situation:** The same friction keeps happening — a meeting pattern, a
+process gap, a class of bug. Each instance alone is an anecdote; collected
+and counted, they're the evidence behind a process-improvement proposal or a
+"this is where to focus" call.
+
+**Flow:** Capture each instance as it happens (`add_entry`) under a
+consistent label — a theme (`meeting-overrun`) or a tag; `suggest_themes`
+keeps the label converging instead of fragmenting. When it's time to make
+the case: `search_journal` retrieves every instance (tags are searchable),
+`get_entry` pulls the details, and `entries_over_time(theme=…)` or
+`entries_over_time(tag=…)` produces the frequency evidence — "nine times in
+five months" — that turns anecdotes into a pattern.
+
+**Why it matters:** Patterns are invisible at the moment of capture and
+undeniable in aggregate. The journal already pays this cost one entry at a
+time; the label + count is what converts it into leverage at work.

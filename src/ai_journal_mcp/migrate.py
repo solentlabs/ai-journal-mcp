@@ -16,6 +16,7 @@ from pathlib import Path
 
 import yaml
 
+from .fsio import journal_lock, write_text_atomic
 from .intake import SKIP_DIRS, IntakeReport
 from .model import Entry
 
@@ -147,7 +148,7 @@ def _generate_views(entries: list[Entry], root: Path, paths: dict[int, Path]) ->
     lines += ["", "## Archive", ""]
     for month in sorted(by_month, reverse=True):
         lines.append(f"- [{month}](entries/{month}/) — {by_month[month]} entries")
-    (root / "JOURNAL.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
+    write_text_atomic(root / "JOURNAL.md", "\n".join(lines) + "\n")
 
     themes_dir = root / "themes"
     themes_dir.mkdir(exist_ok=True)
@@ -159,7 +160,7 @@ def _generate_views(entries: list[Entry], root: Path, paths: dict[int, Path]) ->
         tlines = [f"# Theme: {theme}", "", "Generated view — do not edit by hand.", ""]
         for entry in sorted(theme_entries, key=lambda e: e.date, reverse=True):
             tlines.append(f"- {entry.date} — [{entry.title or '(untitled)'}](../{paths[id(entry)]})")
-        (themes_dir / f"{theme}.md").write_text("\n".join(tlines) + "\n", encoding="utf-8")
+        write_text_atomic(themes_dir / f"{theme}.md", "\n".join(tlines) + "\n")
 
 
 def _write_report(result: MigrationResult, root: Path) -> None:
@@ -191,9 +192,11 @@ def _rescue_strays(root: Path) -> int:
     JOURNAL.md is a generated view, but an agent following stale instructions
     may append a dated entry to it directly. Regenerating would silently
     destroy that text, so any dated entry found there that isn't already in
-    the managed store is written out as a canonical entry first.
+    the managed store is written out as a canonical entry first. Identity is
+    date+title *and* body: a stray sharing a stored entry's date and title but
+    saying something new is still new text and must be rescued, not dropped
+    (write_entry suffixes the filename on collision).
     """
-    from .model import slugify
     from .parser import parse_file
     from .store import load_managed, write_entry
 
@@ -203,29 +206,35 @@ def _rescue_strays(root: Path) -> int:
     strays = [e for e in parse_file(journal_md) if e.body.strip()]
     if not strays:
         return 0
-    existing = {e.identity for e in load_managed(root)}
+    existing_bodies: dict[tuple[str, str], set[str]] = {}
+    for e in load_managed(root):
+        existing_bodies.setdefault(e.identity, set()).add(e.body_hash)
     rescued = 0
     for stray in strays:
-        if (stray.date.isoformat(), slugify(stray.title or "")[:40]) not in existing:
-            write_entry(root, stray.date, stray.title or "Untitled", stray.body)
-            rescued += 1
+        if stray.body_hash in existing_bodies.get(stray.identity, set()):
+            continue  # already stored verbatim
+        write_entry(root, stray.date, stray.title or "Untitled", stray.body)
+        rescued += 1
     return rescued
 
 
-def refresh_views(root: Path) -> tuple[int, int]:
+def refresh_views(root: Path, skipped: list[str] | None = None) -> tuple[int, int]:
     """Regenerate JOURNAL.md and themes/ from the managed store.
 
-    Returns (entry_count, rescued_count)."""
+    Returns (entry_count, rescued_count). Malformed entry files are skipped
+    (reasons appended to ``skipped``) — their files stay untouched on disk,
+    but the regenerated views won't reference them until they're fixed."""
     from .store import load_managed
 
-    rescued = _rescue_strays(root)
-    entries = load_managed(root)
-    if not entries:
-        return 0, rescued
-    paths = {id(e): e.source_file.relative_to(root) for e in entries}
-    for old in (root / "themes").glob("*.md") if (root / "themes").is_dir() else []:
-        old.unlink()
-    _generate_views(entries, root, paths)
+    with journal_lock(root):  # rescue-then-regenerate must not interleave across sessions
+        rescued = _rescue_strays(root)
+        entries = load_managed(root, skipped=skipped)
+        if not entries:
+            return 0, rescued
+        paths = {id(e): e.source_file.relative_to(root) for e in entries}
+        for old in (root / "themes").glob("*.md") if (root / "themes").is_dir() else []:
+            old.unlink(missing_ok=True)
+        _generate_views(entries, root, paths)
     return len(entries), rescued
 
 

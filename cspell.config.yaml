@@ -12,8 +12,11 @@ ignorePaths:
   - tests/fixtures/**
 
 # Test search strings and keyword stems — valid in context, not vocabulary
+# ("jurnals" is a deliberate typo'd-path fixture)
 ignoreWords:
   - absentterm
+  - hardlinks
+  - jurnals
   - nonexistentterm
   - sanitiz
   - tlines
@@ -22,6 +25,7 @@ words:
   # Python / tooling
   - addopts
   - arcname
+  - caplog
   - capsys
   - conftest
   - dataclass
@@ -29,6 +33,7 @@ words:
   - delenv
   - dedups
   - editorconfig
+  - expanduser
   - fastmcp
   - htmlcov
   - scikit
@@ -39,7 +44,9 @@ words:
   - minversion
   - mypy
   - precommit
+  - procs
   - pycache
+  - platformdirs
   - Pyflakes
   - pylint
   - pyproject
@@ -74,7 +81,11 @@ words:
   # SQLite / stdlib internals
   - executemany
   - executescript
+  - fcntl
+  - flock
   - fromlist
+  - fsio
+  - getpid
   - lastrowid
 
   # Journal / markdown domain
@@ -88,9 +99,12 @@ words:
   - journaling
   - megafile
   - megafiles
+  - retheme
   - rstripped
   - syncable
+  - unimportable
   - unioned
+  - unparseable
   - unthemed
 
   # Project / external references

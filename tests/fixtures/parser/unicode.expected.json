@@ -1,0 +1,17 @@
+{
+  "description": "Non-ASCII titles and bodies (accents, CJK, emoji) parse intact — no mojibake, no split entries.",
+  "entries": [
+    {
+      "date": "2026-03-14",
+      "title": "Café métrics — résumé ☕",
+      "header_level": 3,
+      "body_contains": ["après le fix", "測定結果は良好"]
+    },
+    {
+      "date": "2026-03-15",
+      "title": null,
+      "header_level": 3,
+      "body_contains": ["🎉", "ünïcödé", "naïve façade"]
+    }
+  ]
+}

@@ -1,7 +1,9 @@
+from datetime import date
+
 from ai_journal_mcp.intake import scan_journal
-from ai_journal_mcp.migrate import apply_migration
+from ai_journal_mcp.migrate import apply_migration, refresh_views
 from ai_journal_mcp.parser import parse_file_with_fallback
-from ai_journal_mcp.store import load_managed
+from ai_journal_mcp.store import load_managed, write_entry
 
 # A messy pre-migration journal: an index file with two entries (one of which
 # is duplicated, with a longer body, in a per-theme file), a filename-dated
@@ -94,3 +96,71 @@ def test_untitled_same_date_entries_both_survive(make_journal):
     bodies = [p.read_text(encoding="utf-8") for p in result.written]
     assert any("auth spike" in b for b in bodies)
     assert any("totally different work" in b for b in bodies)
+
+
+def test_refresh_rescues_stray_sharing_date_and_title(make_journal):
+    # regression: rescue matched on date+title only, so a hand-added JOURNAL.md
+    # entry colliding with a stored one was dropped and refresh erased its text
+    root = make_journal({})
+    write_entry(root, date(2026, 7, 1), "Standup", "original text")
+    refresh_views(root)
+    jm = root / "JOURNAL.md"
+    jm.write_text(
+        jm.read_text(encoding="utf-8") + "\n### 2026-07-01: Standup\n\nNew thinking, same title.\n", encoding="utf-8"
+    )
+    _, rescued = refresh_views(root)
+    assert rescued == 1
+    bodies = {e.body for e in load_managed(root)}
+    assert {"original text", "New thinking, same title."} <= bodies
+
+
+def test_refresh_skips_stray_already_stored_verbatim(make_journal):
+    root = make_journal({})
+    write_entry(root, date(2026, 7, 1), "Standup", "same text")
+    refresh_views(root)
+    jm = root / "JOURNAL.md"
+    jm.write_text(jm.read_text(encoding="utf-8") + "\n### 2026-07-01: Standup\n\nsame text\n", encoding="utf-8")
+    _, rescued = refresh_views(root)
+    assert rescued == 0
+    assert len(load_managed(root)) == 1
+
+
+def test_attic_preserves_original_bytes(make_journal):
+    # the no-data-loss invariant, byte-for-byte: every original file must
+    # survive in attic/ exactly as it was, not merely exist there
+    root = make_journal(MESSY_FILES)
+    before = {rel: (root / rel).read_bytes() for rel in MESSY_FILES}
+    apply_migration(scan_journal(root))
+    for rel, data in before.items():
+        assert (root / "attic" / rel).read_bytes() == data, rel
+
+
+def test_stale_theme_views_removed_on_refresh(make_journal):
+    root = make_journal({})
+    path = write_entry(root, date(2026, 7, 1), "Note", "body", themes=["alpha"])
+    refresh_views(root)
+    assert (root / "themes" / "alpha.md").exists()
+    # retheme the entry: the old theme's view must disappear, not linger
+    path.write_text(path.read_text(encoding="utf-8").replace("alpha", "beta"), encoding="utf-8")
+    refresh_views(root)
+    assert not (root / "themes" / "alpha.md").exists()
+    assert (root / "themes" / "beta.md").exists()
+
+
+def test_refresh_on_missing_path_is_a_true_noop(tmp_path):
+    # regression: journal_lock's mkdir materialized a typo'd path plus .lock
+    ghost = tmp_path / "jurnals" / "dev"
+    assert refresh_views(ghost) == (0, 0)
+    assert not ghost.exists()
+
+
+def test_refresh_reports_skipped_malformed_files(make_journal):
+    # regression: a malformed entry silently vanished from regenerated views;
+    # the skip must be surfaced to the caller, not just logged to stderr
+    root = make_journal({})
+    write_entry(root, date(2026, 7, 1), "Good", "fine body")
+    (root / "entries" / "2026-07" / "broken.md").write_text("---\ntitle: unclosed\n", encoding="utf-8")
+    skipped = []
+    count, _ = refresh_views(root, skipped=skipped)
+    assert count == 1
+    assert len(skipped) == 1 and "broken.md" in skipped[0]

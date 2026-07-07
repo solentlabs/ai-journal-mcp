@@ -1,8 +1,13 @@
 # Multi-source consolidation
 
-Status: **day-1 release scope**, design settled, not yet implemented. Once
-built, the contracts move to `SPECIFICATION.md` and the rationale to
-`ARCHITECTURE_DECISIONS.md`.
+Status: **implemented in 0.1.0** (`consolidate.py`, `archive.py`, the
+`consolidate` CLI command). Kept as design history; the authoritative
+contracts are `SPECIFICATION.md` §9 and the code. Where this document and the
+implementation differ, the implementation won: no `--from <path>:name` syntax
+(names derive from the path basename, deduplicated with `-2` suffixes), no
+`loss_check` field on the result (the guarantee is enforced by
+`archive.py`'s per-file membership verification before any deletion), and
+the report lists source→archive paths rather than an archive manifest.
 
 ## What it does
 
