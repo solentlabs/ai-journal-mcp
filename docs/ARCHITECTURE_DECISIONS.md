@@ -283,6 +283,12 @@ usage says otherwise:
 - **A frontmatter `date:` carrying a time component is stored verbatim**
   (`YYYY-MM-DDTHH:MM:SS`), which makes that entry compare oddly against
   `since`/`until` day bounds. Tool-written entries never do this.
+- **Atomic writes are not fsync'd.** `os.replace` guarantees readers and
+  process crashes never see a truncated file; a *power loss* in the seconds
+  after a write can still lose that write (not corrupt others). Journals are
+  prose captured interactively — the user notices a missing entry and
+  re-adds it — and per-write fsync would tax every capture to guard a rare
+  event with a benign failure mode. Revisit only if real data loss occurs.
 
 ## Named `ai-journal-mcp` (was `ai-journal`)
 

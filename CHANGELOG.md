@@ -3,6 +3,21 @@
 Notable changes per release. Format follows [Keep a Changelog](https://keepachangelog.com/);
 versions follow [SemVer](https://semver.org/) (0.x: minor may break).
 
+## Unreleased
+
+- CLI `search` prints a clear message on a malformed query instead of a
+  traceback.
+- View regeneration writes fresh theme views before removing stale ones —
+  a lock-free reader never sees an empty `themes/` window.
+- Temp-file names include the thread id (safe if a future MCP SDK runs
+  tools in parallel threads); duplicate signature computation deduplicated.
+- fsync-on-write deliberately cut — rationale recorded in
+  ARCHITECTURE_DECISIONS ("Known limitations").
+- GitHub Actions bumped off deprecated Node 20 majors (checkout v7,
+  setup-python v6, setup-node v6, upload-artifact v7, download-artifact v8).
+- CLAUDE.md gains a "no warning creep" rule: every surfaced finding is fixed
+  or recorded as a deliberate cut — never left floating.
+
 ## 0.3.0 — 2026-07-07
 
 ### Fixed

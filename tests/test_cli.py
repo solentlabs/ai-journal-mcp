@@ -185,3 +185,12 @@ def test_cli_init_rejects_control_character_names(tmp_path, monkeypatch, capsys)
     monkeypatch.setattr(config, "DEFAULT_CONFIG", tmp_path / "journals.toml")
     assert main(["init", str(tmp_path / "j"), "--name", "bad\nname"]) == 1
     assert "control characters" in capsys.readouterr().out
+
+
+def test_cli_search_malformed_query_prints_message_not_traceback(make_journal, tmp_path, capsys):
+    root = make_journal(CLI_FILES)
+    db = tmp_path / "idx.db"
+    main(["reindex", str(root), "--db", str(db)])
+    capsys.readouterr()
+    assert main(["search", "(", "--db", str(db)]) == 1
+    assert "invalid search query" in capsys.readouterr().out

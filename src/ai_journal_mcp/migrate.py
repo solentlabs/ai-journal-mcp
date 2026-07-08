@@ -127,7 +127,7 @@ def _attic_originals(report: IntakeReport, root: Path, result: MigrationResult) 
             child.rmdir()
 
 
-def _generate_views(entries: list[Entry], root: Path, paths: dict[int, Path]) -> None:
+def _generate_views(entries: list[Entry], root: Path, paths: dict[int, Path]) -> set[str]:
     today = max(e.date for e in entries)
     recent_cutoff = today - timedelta(days=7)
     by_month: dict[str, int] = defaultdict(int)
@@ -156,11 +156,14 @@ def _generate_views(entries: list[Entry], root: Path, paths: dict[int, Path]) ->
     for entry in entries:
         for theme in entry.themes:
             by_theme[theme].append(entry)
+    written: set[str] = set()
     for theme, theme_entries in by_theme.items():
         tlines = [f"# Theme: {theme}", "", "Generated view — do not edit by hand.", ""]
         for entry in sorted(theme_entries, key=lambda e: e.date, reverse=True):
             tlines.append(f"- {entry.date} — [{entry.title or '(untitled)'}](../{paths[id(entry)]})")
         write_text_atomic(themes_dir / f"{theme}.md", "\n".join(tlines) + "\n")
+        written.add(f"{theme}.md")
+    return written
 
 
 def _write_report(result: MigrationResult, root: Path) -> None:
@@ -232,9 +235,14 @@ def refresh_views(root: Path, skipped: list[str] | None = None) -> tuple[int, in
         if not entries:
             return 0, rescued
         paths = {id(e): e.source_file.relative_to(root) for e in entries}
-        for old in (root / "themes").glob("*.md") if (root / "themes").is_dir() else []:
-            old.unlink(missing_ok=True)
-        _generate_views(entries, root, paths)
+        # write the fresh views first (atomic overwrite), then remove only the
+        # stale ones — a lock-free reader never sees an empty themes/ window
+        written = _generate_views(entries, root, paths)
+        themes_dir = root / "themes"
+        if themes_dir.is_dir():
+            for old in themes_dir.glob("*.md"):
+                if old.name not in written:
+                    old.unlink(missing_ok=True)
     return len(entries), rescued
 
 

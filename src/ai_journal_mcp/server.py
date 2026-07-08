@@ -34,9 +34,13 @@ def _managed_root(journal: str) -> Path:
     return src.path
 
 
+def _signatures_for(sources: dict) -> dict[str, str]:
+    """Live content signature per source (add/edit/delete-sensitive)."""
+    return {src.name: indexer.source_signature(src.path, src.mode) for src in sources.values()}
+
+
 def _current_signatures() -> dict[str, str]:
-    """Live content signature per configured source (add/edit/delete-sensitive)."""
-    return {src.name: indexer.source_signature(src.path, src.mode) for src in _sources().values()}
+    return _signatures_for(_sources())
 
 
 def _ensure_index() -> Path:
@@ -52,7 +56,7 @@ def _reindex(skipped: list[str] | None = None) -> int:
     sources = _sources()
     # signatures are taken BEFORE loading: a write racing the build then reads
     # as stale on the next call instead of being missed forever
-    signatures = {src.name: indexer.source_signature(src.path, src.mode) for src in sources.values()}
+    signatures = _signatures_for(sources)
     pairs: list[tuple[str, Entry]] = []
     task_pairs: list[tuple[str, tasks.Task]] = []
     for src in sources.values():

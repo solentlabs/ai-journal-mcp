@@ -11,6 +11,7 @@ sequences are serialized by an flock on the journal root.
 from __future__ import annotations
 
 import os
+import threading
 from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
@@ -22,12 +23,16 @@ except ImportError:  # pragma: no cover — Windows has no flock; see docs
 
 
 def _tmp_for(path: Path) -> Path:
-    return path.parent / f".{path.name}.{os.getpid()}.tmp"
+    # pid + thread id: unique even if a future MCP SDK runs tools in
+    # parallel threads within one server process
+    return path.parent / f".{path.name}.{os.getpid()}.{threading.get_ident()}.tmp"
 
 
 def write_text_atomic(path: Path, text: str) -> None:
     """Replace ``path`` with ``text`` atomically — readers see old or new
-    bytes, never a truncated file, even across a crash mid-write."""
+    bytes, never a truncated file, even across a process crash mid-write.
+    (No fsync: power-loss durability is deliberately not guaranteed — see
+    the concurrency ADR.)"""
     tmp = _tmp_for(path)
     try:
         tmp.write_text(text, encoding="utf-8")

@@ -43,6 +43,12 @@
 - Before declaring work done, run `make check` (lint + format-check +
   type-check + docs lint + full suite with coverage; the docs lint needs
   Node/npm). It must be green.
+- **No warning creep.** Every surfaced finding — from a review, a linter, or
+  CI annotations — reaches a terminal state: fixed with a test, or recorded
+  as a deliberate cut in `ARCHITECTURE_DECISIONS.md` ("Known limitations").
+  Never relay a capped/summarized review without expanding its cut list, and
+  never leave "known minor issues" floating in conversation or commit
+  messages as the only record.
 - Ruff is the single linter/formatter and mypy the type authority; all tool
   config lives in `pyproject.toml`. Don't add competing config files.
 - New behavior requires tests. Test data is fixture-based, not inline:

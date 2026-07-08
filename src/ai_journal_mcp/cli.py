@@ -140,7 +140,11 @@ def _serve() -> int:
 
 
 def _search(args: argparse.Namespace) -> int:
-    results = search(args.db, args.query, limit=args.limit, theme=args.theme, since=args.since, until=args.until)
+    try:
+        results = search(args.db, args.query, limit=args.limit, theme=args.theme, since=args.since, until=args.until)
+    except ValueError as exc:  # malformed FTS query — message, not traceback
+        print(exc)
+        return 1
     if not results:
         print("No matches.")
     for row in results:
