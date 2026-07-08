@@ -5,10 +5,42 @@ versions follow [SemVer](https://semver.org/) (0.x: minor may break).
 
 ## Unreleased
 
+## 0.4.0 — 2026-07-08
+
+### Added
+
+- **LLM-assisted intake for arbitrary journal formats** — any existing
+  journal can now migrate, whatever its layout. `discover` (CLI) /
+  `discover_journal` (MCP) produce a read-only evidence report: file-name
+  patterns, heading shapes, frontmatter keys, and excerpts, plus the spec
+  schema — everything an LLM (or a human) needs to write a one-time
+  **extraction spec**. The spec (TOML `[[source]]` rules: globs, a `header`
+  regex with named `date`/`time`/`title` groups, `filename_date`,
+  `date_format`) is executed deterministically by `scan --spec` /
+  `migrate --spec` — original text is sliced verbatim, never re-generated —
+  and recorded in `migration-report.md`. The `scan_source` MCP tool dry-runs
+  a spec read-only; applying stays CLI-only. Design rationale in
+  ARCHITECTURE_DECISIONS ("LLM as format detective, code as scalpel").
+- A header time (`### [2026-01-23 10:42] Title`) survives into the canonical
+  entry's frontmatter (`time:`).
+- Intake-report orphans carry a one-line excerpt for triage (capped list,
+  remainder counted).
+
+### Fixed
+
+- **Migration refuses a zero-entry scan.** Applying a scan that understood
+  no files previously moved everything to `attic/` and then crashed while
+  generating views, leaving the journal stripped.
+- **Originals move to `attic/` before canonical entries are written.** With
+  a spec, a canonical filename can equal an original's path; writing first
+  could overwrite the original before it was preserved.
 - CLI `search` prints a clear message on a malformed query instead of a
   traceback.
 - View regeneration writes fresh theme views before removing stale ones —
   a lock-free reader never sees an empty `themes/` window.
+
+### Changed
+
 - Temp-file names include the thread id (safe if a future MCP SDK runs
   tools in parallel threads); duplicate signature computation deduplicated.
 - fsync-on-write deliberately cut — rationale recorded in
