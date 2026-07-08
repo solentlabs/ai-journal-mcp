@@ -5,6 +5,13 @@ versions follow [SemVer](https://semver.org/) (0.x: minor may break).
 
 ## Unreleased
 
+- **MCP server instructions state the journal/memory division of labor.**
+  Every client surfaces them to the model at session start: dated events,
+  decisions, and lessons go in the journal via `add_entry`; agent memory
+  files are for standing instructions — curbing redundant work records
+  accumulating outside the journal. `add_entry`'s description reinforces it
+  at the point of use.
+
 ## 0.4.0 — 2026-07-08
 
 ### Added

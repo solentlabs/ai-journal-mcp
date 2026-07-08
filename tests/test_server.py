@@ -332,3 +332,14 @@ def test_scan_source_rejects_bad_spec_and_bad_path(make_journal, tmp_path):
         server.scan_source(str(root), spec_toml='[[source]]\npaths = ["*.md"]\n')
     with pytest.raises(ValueError, match="not a directory"):
         server.discover_journal(str(tmp_path / "nope"))
+
+
+def test_server_instructions_steer_session_knowledge_to_journal():
+    # the journal/memory division of labor ships in the MCP initialize
+    # handshake so it reaches every agent on every client — losing it would
+    # silently regress agents back into redundant memory files
+    text = server.mcp.instructions or ""
+    assert "add_entry" in text
+    assert "memory" in text
+    assert "standing instructions" in text
+    assert "session knowledge" in server.add_entry.__doc__

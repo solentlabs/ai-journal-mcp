@@ -20,7 +20,20 @@ from .model import Entry
 from .spec import SpecError, parse_spec
 from .store import load_source, write_entry
 
-mcp = FastMCP("ai-journal-mcp")
+# Sent to every MCP client at initialization and surfaced to the model each
+# session: the journal/memory division of labor lives here so it reaches any
+# agent, on any client, without relying on per-project instruction files.
+mcp = FastMCP(
+    "ai-journal-mcp",
+    instructions=(
+        "This journal is the durable record of work: dated events, decisions, "
+        "and lessons learned go here via add_entry — not into agent memory "
+        "files. Reserve memory for standing instructions and preferences that "
+        "shape future behavior. Before saving session knowledge anywhere else, "
+        "check whether it belongs in the journal; it is searchable later via "
+        "search_journal."
+    ),
+)
 
 
 def _sources():
@@ -117,9 +130,11 @@ def add_entry(
 ) -> str:
     """Write a new entry to a managed journal and refresh its index/views.
 
-    journal must be a configured source with mode='managed'. entry_date
-    defaults to today (YYYY-MM-DD). Returns the path of the new entry file
-    (plus a WARNING line if malformed files had to be skipped).
+    This is where dated session knowledge belongs — events, decisions,
+    lessons — rather than in agent memory files (reserve those for standing
+    instructions). journal must be a configured source with mode='managed'.
+    entry_date defaults to today (YYYY-MM-DD). Returns the path of the new
+    entry file (plus a WARNING line if malformed files had to be skipped).
     """
     root = _managed_root(journal)
     when = date.fromisoformat(entry_date) if entry_date else date.today()

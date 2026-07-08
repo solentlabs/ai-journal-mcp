@@ -235,6 +235,12 @@ so the server treats it as stale and rebuilds on first use.
 
 ## 8. MCP Tool Surface
 
+**Server instructions** (sent in the MCP initialize response, surfaced to
+the model each session): dated events, decisions, and lessons belong in the
+journal via `add_entry`; agent memory files are reserved for standing
+instructions and preferences. This is the tool-carried half of keeping
+work records from accumulating redundantly outside the journal.
+
 | Tool | Contract |
 |------|----------|
 | `search_journal(query, journal?, theme?, since?, until?, limit=10)` | FTS5 query syntax; date bounds inclusive `YYYY-MM-DD`; spans entries *and* tasks. Rows carry `journal`, `date`, `title`, `theme`, `source`, `line`, `kind` (`entry`/`task`), `snippet`, `rank` |
