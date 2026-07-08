@@ -28,6 +28,7 @@ class Entry:
     source_file: Path
     source_line: int
     header_level: int
+    time: str | None = None  # "HH:MM" when the source header carried one
     themes: list[str] = field(default_factory=list)
     tags: list[str] = field(default_factory=list)
     blog_angles: list[str] = field(default_factory=list)

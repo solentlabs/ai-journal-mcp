@@ -54,12 +54,10 @@ def _dedup(entries: list[Entry]) -> tuple[list[Entry], list[tuple[Entry, Entry]]
 
 
 def _frontmatter(entry: Entry, source: str) -> str:
-    meta = {
-        "date": entry.date.isoformat(),
-        "title": entry.title,
-        "themes": entry.themes,
-        "source": source,
-    }
+    meta: dict[str, object] = {"date": entry.date.isoformat()}
+    if entry.time:
+        meta["time"] = entry.time
+    meta.update({"title": entry.title, "themes": entry.themes, "source": source})
     return "---\n" + yaml.safe_dump(meta, sort_keys=False, allow_unicode=True) + "---\n"
 
 
@@ -125,6 +123,14 @@ def _attic_originals(report: IntakeReport, root: Path, result: MigrationResult) 
             for d in subdirs:
                 d.rmdir()
             child.rmdir()
+    # spec-driven intake may have emptied original month dirs under entries/
+    # (a foreign journal that already used that name); sweep those too so the
+    # managed store starts clean
+    store = root / "entries"
+    if store.is_dir():
+        for d in sorted((p for p in store.rglob("*") if p.is_dir()), key=lambda p: len(p.parts), reverse=True):
+            if not any(d.iterdir()):
+                d.rmdir()
 
 
 def _generate_views(entries: list[Entry], root: Path, paths: dict[int, Path]) -> set[str]:
@@ -166,7 +172,7 @@ def _generate_views(entries: list[Entry], root: Path, paths: dict[int, Path]) ->
     return written
 
 
-def _write_report(result: MigrationResult, root: Path) -> None:
+def _write_report(result: MigrationResult, root: Path, spec_text: str | None = None) -> None:
     lines = [
         "# Migration report",
         "",
@@ -186,6 +192,10 @@ def _write_report(result: MigrationResult, root: Path) -> None:
             f"| {kept.source_file.relative_to(root)}:{kept.source_line} "
             f"| {dropped.source_file.relative_to(root)}:{dropped.source_line} |"
         )
+    if spec_text is not None:
+        # the spec is throwaway, so the report is its one durable record —
+        # everything needed to audit (or redo) the extraction
+        lines += ["", "## Extraction spec used", "", "```toml", spec_text.rstrip("\n"), "```"]
     (root / "migration-report.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
@@ -248,13 +258,20 @@ def refresh_views(root: Path, skipped: list[str] | None = None) -> tuple[int, in
 
 def apply_migration(report: IntakeReport) -> MigrationResult:
     root = report.root
+    if not report.all_entries:
+        # applying would move every file to attic and write nothing back —
+        # a scan that found no entries means the format wasn't understood
+        raise ValueError("scan found no entries — refusing to migrate (fix the extraction spec and re-run the scan)")
     result = MigrationResult()
     entries, dropped = _dedup(report.all_entries)
     result.dropped_duplicates = dropped
+    # attic first: with spec-driven intake a canonical filename can equal an
+    # original's (e.g. a foreign entries/2026-01/23-note.md); writing first
+    # would overwrite the original before it was preserved
+    _attic_originals(report, root, result)
     paths, result.written, result.unthemed_count = _write_entries(
         entries, root, lambda e: f"{e.source_file.relative_to(root)}:{e.source_line}"
     )
-    _attic_originals(report, root, result)
     _generate_views(entries, root, paths)
-    _write_report(result, root)
+    _write_report(result, root, spec_text=report.spec.text if report.spec else None)
     return result

@@ -17,9 +17,14 @@ ship with a fixture reproducing the format that motivated them.
 ```jsonc
 {
   "description": "human note on what this fixture exercises",
+  "header": "^### \\[(?P<date>...",  // optional; extraction-spec header regex
+                                     // for foreign formats (named groups:
+                                     // date required, time/title optional)
+  "date_format": "%Y-%m-%d",         // optional; strptime format for the date
   "entries": [
     {
       "date": "2026-06-11",          // required, ISO; entry.date.isoformat()
+      "time": "10:42",               // optional; use null to assert no time
       "title": "First Entry",        // optional; use null to assert no title
       "header_level": 3,             // optional; markdown header depth
       "body": "exact body",          // optional; exact-match assertion

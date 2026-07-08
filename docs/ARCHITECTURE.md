@@ -34,7 +34,9 @@ choices, see `ARCHITECTURE_DECISIONS.md`; for exact formats, see
 |--------|----------------|
 | `model.py` | `Entry` dataclass, slugs, duplicate-identity hashing |
 | `parser.py` | Extract dated entries from heterogeneous markdown; filename-date fallback for archive eras |
-| `intake.py` | Read-only scan of an existing journal: counts, date ranges, duplicates, orphans (`IntakeReport`) |
+| `discover.py` | Read-only evidence report about an unfamiliar journal: file-name patterns, heading shapes, frontmatter keys, excerpts |
+| `spec.py` | Extraction specs: LLM-proposed TOML rules for foreign formats, validated and executed deterministically |
+| `intake.py` | Read-only scan of an existing journal: counts, date ranges, duplicates, orphans (`IntakeReport`); spec-driven walk for foreign layouts |
 | `migrate.py` | Apply a migration (messy → managed layout); regenerate views (`refresh_views`) |
 | `consolidate.py` | Merge several sources into one fresh managed journal; sources archived then removed |
 | `archive.py` | Tar-and-verify safety net for consolidation: sources are deleted only after every file is confirmed inside the archive |
@@ -48,7 +50,8 @@ choices, see `ARCHITECTURE_DECISIONS.md`; for exact formats, see
 
 Dependency direction: `server.py` and `cli.py` depend on everything;
 library modules depend only downward (`consolidate` → `archive`/`migrate`;
-`store`/`intake`/`migrate` → `parser` → `model`; `indexer` → `model`/`tasks`;
+`store`/`intake`/`migrate` → `parser` → `model`; `intake` → `spec` →
+`parser`; `discover` → `parser`; `indexer` → `model`/`tasks`;
 writers → `fsio`). Nothing imports `server.py` or `cli.py`.
 
 ## Journal Modes
@@ -81,11 +84,21 @@ between the mutable and append-only kinds.
 **Intake** (`scan` → report; `migrate --apply` → managed layout;
 `consolidate --from ... dest` → several sources merged into a fresh managed
 journal): scan is always read-only and produces the dry-run report. Apply
+moves every original file into `attic/` preserving relative paths, then
 writes canonical entries, deduplicates (longest body wins, themes merged),
-moves every original file into `attic/` preserving relative paths, sweeps
-emptied directories, and writes `migration-report.md` recording every dedup
-decision. Consolidation is the one path that removes source directories —
-and only after `archive.py` has verified every file into a tarball.
+sweeps emptied directories, and writes `migration-report.md` recording every
+dedup decision. Consolidation is the one path that removes source
+directories — and only after `archive.py` has verified every file into a
+tarball.
+
+For journals in formats the default parser doesn't know, intake becomes a
+loop driven by the LLM operating the MCP server: `discover` collects
+read-only evidence (file-name patterns, heading shapes, excerpts), the LLM
+proposes an **extraction spec** (`spec.py`: globs plus date/time/title
+rules), `scan --spec` dry-runs it until every file is accounted for, and
+`migrate --spec --apply` executes it deterministically — the LLM decides
+where entries are and how they're shaped; code does the verbatim slicing.
+The spec is throwaway: recorded in `migration-report.md`, never config.
 
 ## Concurrency
 

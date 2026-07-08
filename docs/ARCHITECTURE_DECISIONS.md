@@ -79,6 +79,30 @@ markdown or not — move to `attic/` with their relative paths intact.
 exactly the data people care most about (years of personal records). Disk is
 cheap; trust is not. The user deletes the attic when satisfied, or never.
 
+## LLM as format detective, code as scalpel (extraction specs)
+
+**Decision:** Intake of arbitrary foreign formats leverages the LLM already
+operating the MCP server — but only to *understand* the format, never to
+*copy* the data. `discover` emits a read-only evidence report; the LLM
+proposes an extraction spec (TOML: globs + date/time/title rules); the
+migrator executes the spec deterministically, slicing original text
+verbatim. The tool itself never calls an LLM (no API key, no network). The
+spec is throwaway — recorded in `migration-report.md`, never persistent
+config — and applying a migration stays CLI-only; the MCP surface
+(`discover_journal`, `scan_source`) is read-only.
+
+**Rationale:** Users configure existing journals in effectively infinite
+ways, and regex-by-regex chasing can't keep up — but an LLM re-emitting
+thousands of entry bodies through `add_entry` would silently paraphrase,
+truncate, and drop at scale, violating the no-data-loss constraint in an
+unverifiable way. Models are unreliable copiers but excellent format
+detectives, so the split puts judgment where variety is infinite (one-shot,
+human-reviewed migration) and keeps parsing reproducible — the index is
+rebuilt from markdown constantly and must parse identically every time,
+which also rules out persisting LLM parsing into indexed mode. Truly
+unstructured remainders (a handful of orphans) can still go through
+`add_entry` one at a time, where a human reviews each.
+
 ## FTS5 first, embeddings later (maybe)
 
 **Decision:** Search is SQLite FTS5 (bm25 + snippets), in the standard

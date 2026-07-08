@@ -15,9 +15,11 @@ ignorePaths:
 # ("jurnals" is a deliberate typo'd-path fixture)
 ignoreWords:
   - absentterm
+  - dotdot
   - hardlinks
   - jurnals
   - nonexistentterm
+  - nonstring
   - sanitiz
   - tlines
 
@@ -35,6 +37,8 @@ words:
   - editorconfig
   - expanduser
   - fastmcp
+  - groupindex
+  - strptime
   - htmlcov
   - scikit
   - sklearn

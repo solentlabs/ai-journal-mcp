@@ -11,6 +11,7 @@ from .intake import format_report, scan_journal
 from .migrate import apply_migration
 from .model import Entry
 from .parser import parse_file
+from .spec import ExtractionSpec, SpecError, load_spec
 from .store import init_journal, is_managed, load_managed
 
 
@@ -27,16 +28,57 @@ def _collect_entries(roots: list[Path], skipped: list[str] | None = None) -> lis
     return pairs
 
 
+def _load_spec_arg(args: argparse.Namespace) -> ExtractionSpec | None:
+    """Load --spec if given; raises SpecError (also for an unreadable file)."""
+    if not getattr(args, "spec", None):
+        return None
+    try:
+        return load_spec(args.spec)
+    except OSError as exc:
+        raise SpecError(f"cannot read {args.spec}: {exc}") from exc
+
+
+def _scan(args: argparse.Namespace) -> int:
+    try:
+        spec = _load_spec_arg(args)
+    except SpecError as exc:
+        print(f"Bad extraction spec: {exc}")
+        return 1
+    print(format_report(scan_journal(args.root, spec=spec)))
+    return 0
+
+
+def _discover(args: argparse.Namespace) -> int:
+    from .discover import discover, format_discovery
+
+    if not args.root.is_dir():
+        print(f"{args.root} is not a directory")
+        return 1
+    print(format_discovery(discover(args.root)))
+    return 0
+
+
 def _migrate(args: argparse.Namespace) -> int:
-    if is_managed(args.root):
+    try:
+        spec = _load_spec_arg(args)
+    except SpecError as exc:
+        print(f"Bad extraction spec: {exc}")
+        return 1
+    # an existing entries/ normally means "already managed"; a spec is an
+    # explicit statement that this journal's entries/ is a foreign layout
+    if is_managed(args.root) and spec is None:
         print(f"{args.root} already has an entries/ directory — refusing to migrate.")
         return 1
-    report = scan_journal(args.root)
+    report = scan_journal(args.root, spec=spec)
     if not args.apply:
         print(format_report(report))
         print("\n(dry run — pass --apply to migrate)")
     else:
-        result = apply_migration(report)
+        try:
+            result = apply_migration(report)
+        except ValueError as exc:
+            print(exc)
+            return 1
         print(f"Wrote {len(result.written)} entries to entries/")
         print(f"Dropped {len(result.dropped_duplicates)} duplicates (see migration-report.md)")
         print(f"Moved {len(result.moved_to_attic)} original files to attic/")
@@ -161,6 +203,10 @@ def main(argv: list[str] | None = None) -> int:
 
     p_scan = sub.add_parser("scan", help="dry-run intake report for a journal directory")
     p_scan.add_argument("root", type=Path)
+    p_scan.add_argument("--spec", type=Path, help="extraction spec TOML for foreign formats (see `discover`)")
+
+    p_disc = sub.add_parser("discover", help="read-only evidence report about an unfamiliar journal's layout")
+    p_disc.add_argument("root", type=Path)
 
     p_init = sub.add_parser("init", help="scaffold a new managed journal and register it in journals.toml")
     p_init.add_argument("path", type=Path, help="directory for the new managed journal")
@@ -169,6 +215,7 @@ def main(argv: list[str] | None = None) -> int:
     p_migrate = sub.add_parser("migrate", help="migrate a journal to managed layout")
     p_migrate.add_argument("root", type=Path)
     p_migrate.add_argument("--apply", action="store_true", help="actually write; default prints the dry-run report")
+    p_migrate.add_argument("--spec", type=Path, help="extraction spec TOML for foreign formats (see `discover`)")
 
     p_cons = sub.add_parser("consolidate", help="consolidate one or more sources into a new managed journal")
     p_cons.add_argument("dest", type=Path, help="destination path for the new managed journal (must be empty/new)")
@@ -202,20 +249,22 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     if args.command == "scan":
-        print(format_report(scan_journal(args.root)))
-    elif args.command == "init":
+        return _scan(args)
+    if args.command == "discover":
+        return _discover(args)
+    if args.command == "init":
         return _init(args)
-    elif args.command == "migrate":
+    if args.command == "migrate":
         return _migrate(args)
-    elif args.command == "consolidate":
+    if args.command == "consolidate":
         return _consolidate(args)
-    elif args.command == "reindex":
+    if args.command == "reindex":
         return _reindex(args)
-    elif args.command == "refresh":
+    if args.command == "refresh":
         return _refresh(args)
-    elif args.command == "serve":
+    if args.command == "serve":
         return _serve()
-    elif args.command == "search":
+    if args.command == "search":
         return _search(args)
     return 0
 

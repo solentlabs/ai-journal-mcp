@@ -63,7 +63,9 @@ Four capabilities, one local MCP server:
    `migrate --apply` rewrites a sprawling journal into the clean layout —
    originals preserved in `attic/`, every dedup decision logged, **no data loss,
    ever**. (The first run absorbed 1,460 entries across 340 files spanning three
-   format eras.)
+   format eras.) Journal in a format all your own? `discover` hands your AI the
+   evidence to write a one-time extraction spec, so *any* layout migrates — the
+   spec decides where entries are; the text itself is always copied verbatim.
 3. **Recall & analyze** — full-text + structured search across one or many
    journals (`search_journal`, `entries_over_time`, `list_themes`, `get_entry`),
    filtered by theme, journal, or date range. Surface recurring patterns, find
@@ -126,6 +128,11 @@ you). The CLI handles intake and maintenance directly:
 ai-journal-mcp scan ~/old-journal            # dry-run intake report
 ai-journal-mcp migrate ~/old-journal --apply # rewrite into the managed layout
 ai-journal-mcp refresh ~/journal             # regenerate JOURNAL.md + theme views
+
+# journal in a format of your own? evidence report -> AI writes spec.toml -> dry-run -> apply
+ai-journal-mcp discover ~/my-journal
+ai-journal-mcp scan ~/my-journal --spec spec.toml
+ai-journal-mcp migrate ~/my-journal --spec spec.toml --apply
 ```
 
 ## Documentation

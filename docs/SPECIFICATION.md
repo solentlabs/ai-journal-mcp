@@ -91,13 +91,64 @@ fixture per the parser rule in `CLAUDE.md`.)
 `YYYY-MM/DD-*.md`, becomes a single entry dated from its path; its title is
 the first heading line if present, else null; body is the remainder.
 
+## 3a. Extraction Spec (foreign formats)
+
+Existing journals arrive in arbitrary layouts the default rules can't know.
+An **extraction spec** is a TOML file of `[[source]]` rules that tells
+scan/migrate where entries live and how dates, times, and titles are encoded.
+It is typically proposed by an LLM from the `discover` evidence report, then
+executed deterministically — original text is sliced verbatim, never
+re-generated. The spec is **throwaway**: used for one migration, recorded
+verbatim in `migration-report.md`, never persistent config.
+
+```toml
+[[source]]
+paths = ["entries/**/*.md"]      # globs relative to the journal root
+header = '^###\s+\[(?P<date>\d{4}-\d{2}-\d{2})(?:\s+(?P<time>\d{2}:\d{2}))?\]\s*(?P<title>.*?)\s*$'
+
+[[source]]
+paths = ["receipts/*.md"]
+filename_date = '(?P<date>\d{4}-\d{2}-\d{2})'   # searched in the file name
+date_format = "%Y-%m-%d"         # strptime format; this is the default
+```
+
+Contract:
+
+- Per file, the first `[[source]]` whose glob matches wins. Globs must be
+  relative, without `..`.
+- `header` is a per-line regex with named groups — `date` required, `time`
+  and `title` optional. It replaces the default header pattern; every other
+  parser rule of §3 (body extent, fences, internal headings, invalid dates)
+  applies unchanged. A captured `time` survives into the canonical entry's
+  frontmatter.
+- If `header` yields nothing and `filename_date` finds a date in the file
+  name, the whole file becomes one entry (title from its first heading, as
+  in the filename-date fallback). A rule needs `header` and/or
+  `filename_date`.
+- Files a rule matches but cannot date, and markdown no glob covers, stay
+  **orphans** in the dry-run report — nothing is guessed.
+- Unknown keys, bad regexes, a missing `(?P<date>…)` group, or a bad
+  `date_format` are `SpecError`s reported before anything runs.
+
+**Discovery.** `discover` (CLI) / `discover_journal` (MCP) produce the
+read-only evidence report the spec is written from: file-name patterns,
+heading shapes (normalized to tokens like `### [YYYY-MM-DD HH:MM] Title`,
+with counts and raw examples), frontmatter keys, and excerpts — plus the
+spec schema and loop instructions. It makes no parsing decisions.
+
 ## 4. Intake Scan (read-only)
 
 `scan_journal(root)` walks `*.md` recursively, skipping
-`.git`, `.claude`, `attic`, `entries`, `themes`, `node_modules`. Produces:
+`.git`, `.claude`, `attic`, `entries`, `tasks`, `themes`, `node_modules`.
+With an extraction spec (`scan_journal(root, spec)`), the walk is driven by
+the spec's globs instead, and only `.git`, `.claude`, `attic`,
+`node_modules` are off limits — a foreign journal may keep data under
+`entries/`. Produces:
 
 - per-file entry counts, date ranges, line counts
-- **orphans**: files with no extractable entries (human triage list)
+- **orphans**: files with no extractable entries — listed with a one-line
+  excerpt for triage (capped at 20 shown; the remainder is counted, never
+  silently dropped)
 - **exact duplicates**: same date + identical normalized body (sha256 of
   rstripped lines)
 - **near duplicates**: same date + same 40-char title slug, different body
@@ -111,16 +162,22 @@ Root-level themed files contribute their stem as the entry's theme;
    themes are the union of the group's themes, every drop is recorded.
    **Title-less** entries dedup by `(date, exact normalized-body hash)` —
    two different date-only session logs on the same day are never merged.
-2. Write canonical entry files (§1) with `source` provenance.
-3. Move original files (markdown and not) to `attic/<original relative
+2. Move original files (markdown and not) to `attic/<original relative
    path>`; sweep emptied directories bottom-up. (A non-markdown file sitting
    at the journal root is left in place — only scanned markdown and files
-   inside swept subdirectories move.)
-4. Generate views (§6) and `migration-report.md` (counts + dedup table).
+   inside swept subdirectories move.) Originals move **before** canonical
+   files are written: with a spec, a canonical filename can equal an
+   original's path, and the original must already be safe in `attic/`.
+3. Write canonical entry files (§1) with `source` provenance; a captured
+   header `time` lands in frontmatter.
+4. Generate views (§6) and `migration-report.md` (counts + dedup table +
+   the extraction spec verbatim, when one was used — its one durable record).
 
 Invariant (tested): every non-duplicate body hash present before migration
 exists in the managed store after; dropped duplicates remain in `attic/`.
-Refuses to run if `entries/` already exists.
+Refusals: if `entries/` already exists (unless a spec is given — an explicit
+statement that `entries/` is a foreign layout), and if the scan found zero
+entries (applying would strip the journal into `attic/` and write nothing).
 
 ## 6. Generated Views (managed journals)
 
@@ -190,6 +247,8 @@ so the server treats it as stale and rebuilds on first use.
 | `update_task(journal, task_id, status?, priority?, blocked_by?, entries?, body?, tags?, reflection?, themes?, entry_date?)` | Mutate a task in place (only passed fields change). Pass `reflection` to also graduate it into a dated journal entry — the planned-future → completed-past bridge: writes an entry (title from the task, body = `reflection`, optional `themes`) and links it back |
 | `list_tasks(journal?, status?, priority?, tag?)` | Tasks, open/high-priority first; each carries `ready`, `tags`, and `entries` |
 | `get_task(journal, task_id)` | Full task detail incl. `entries` to pull context via `get_entry` |
+| `discover_journal(path)` | Read-only evidence report (§3a) about any directory — need not be configured. The LLM-side start of the intake loop |
+| `scan_source(path, spec_toml?)` | Dry-run intake report (§4) for any directory; `spec_toml` is extraction-spec text (§3a). Read-only — applying a migration stays CLI-only |
 | `reindex()` | Full rebuild from sources |
 
 `body` is freeform: a whole-session dump, a single lesson, or a tidied-up
@@ -226,8 +285,9 @@ it.
 | Command | Purpose |
 |---------|---------|
 | `init <path> [--name]` | Scaffold a new managed journal and register it in journals.toml |
-| `scan <root>` | Dry-run intake report |
-| `migrate <root> [--apply]` | Dry-run by default; apply per §5 |
+| `discover <root>` | Read-only evidence report about an unfamiliar journal's layout (§3a) |
+| `scan <root> [--spec <toml>]` | Dry-run intake report; `--spec` applies an extraction spec (§3a) |
+| `migrate <root> [--apply] [--spec <toml>]` | Dry-run by default; apply per §5 |
 | `consolidate <dest> --from <path>... [--apply]` | Consolidate sources into a fresh managed journal; dry-run by default |
 | `reindex <roots...> --db <path>` | Build index from explicit paths |
 | `search <query> --db <path> [--limit/--theme/--since/--until]` | Query an index |

@@ -1,0 +1,25 @@
+{
+  "description": "work journal found in the wild: daily file with '### [YYYY-MM-DD HH:MM] Title' headers, parsed via an extraction-spec header regex; internal headers and fenced fakes must not split entries",
+  "header": "^###\\s+\\[(?P<date>\\d{4}-\\d{2}-\\d{2})(?:\\s+(?P<time>\\d{2}:\\d{2}))?\\]\\s*(?P<title>.*?)\\s*$",
+  "entries": [
+    {
+      "date": "2026-01-23",
+      "time": "10:42",
+      "title": "Fixed the build pipeline",
+      "header_level": 3,
+      "body_contains": ["cache step", "#### What actually happened", "Not an entry — inside a code fence"]
+    },
+    {
+      "date": "2026-01-23",
+      "time": "15:07",
+      "title": "Standup notes",
+      "body": "Second entry of the day."
+    },
+    {
+      "date": "2026-01-23",
+      "time": null,
+      "title": "Untimed note",
+      "body_endswith": "time stays null."
+    }
+  ]
+}

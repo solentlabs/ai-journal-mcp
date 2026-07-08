@@ -3,6 +3,10 @@
 The scan is read-only. It walks a journal directory, parses every markdown
 file, and produces an IntakeReport: entry counts, date ranges, duplicates,
 and files that contain no dated entries (orphans needing human triage).
+
+With an extraction spec (``spec.py``), the walk is driven by the spec's
+globs instead of the default layout assumptions — the path for foreign
+formats found by ``discover``.
 """
 
 from __future__ import annotations
@@ -13,8 +17,12 @@ from pathlib import Path
 
 from .model import Entry
 from .parser import parse_file_with_fallback
+from .spec import ExtractionSpec, SourceRule, parse_file_with_rule
 
 SKIP_DIRS = {".git", ".claude", "attic", "entries", "tasks", "themes", "node_modules"}
+# A spec names its own paths, so only tool- and VCS-owned directories are off
+# limits; entries/tasks/themes may well be where a foreign journal keeps data.
+SPEC_SKIP_DIRS = {".git", ".claude", "attic", "node_modules"}
 
 
 # Source-file stem -> theme. Files not listed (JOURNAL.md, monthly archives)
@@ -45,6 +53,7 @@ class IntakeReport:
     root: Path
     scans: list[FileScan] = field(default_factory=list)
     orphans: list[FileScan] = field(default_factory=list)
+    spec: ExtractionSpec | None = None
 
     @property
     def all_entries(self) -> list[Entry]:
@@ -69,24 +78,57 @@ class IntakeReport:
         return [group for group in by_identity.values() if len(group) > 1]
 
 
-def scan_journal(root: Path) -> IntakeReport:
+def _skipped(path: Path, root: Path, skip_dirs: set[str]) -> bool:
+    return any(part in skip_dirs for part in path.relative_to(root).parts)
+
+
+def _file_scan(path: Path, entries: list[Entry], root: Path) -> FileScan:
+    for entry in entries:
+        entry.themes = infer_themes(path, root)
+    return FileScan(
+        path=path,
+        entries=entries,
+        line_count=len(path.read_text(encoding="utf-8", errors="replace").splitlines()),
+    )
+
+
+def scan_journal(root: Path, spec: ExtractionSpec | None = None) -> IntakeReport:
+    if spec is not None:
+        return _scan_with_spec(root, spec)
     report = IntakeReport(root=root)
     for path in sorted(root.rglob("*.md")):
-        if any(part in SKIP_DIRS for part in path.relative_to(root).parts):
+        if _skipped(path, root, SKIP_DIRS):
             continue
-        entries = parse_file_with_fallback(path)
-        for entry in entries:
-            entry.themes = infer_themes(path, root)
-        scan = FileScan(
-            path=path,
-            entries=entries,
-            line_count=len(path.read_text(encoding="utf-8", errors="replace").splitlines()),
-        )
-        if entries:
-            report.scans.append(scan)
-        else:
-            report.orphans.append(scan)
+        scan = _file_scan(path, parse_file_with_fallback(path), root)
+        (report.scans if scan.entries else report.orphans).append(scan)
     return report
+
+
+def _scan_with_spec(root: Path, spec: ExtractionSpec) -> IntakeReport:
+    report = IntakeReport(root=root, spec=spec)
+    assigned: dict[Path, SourceRule] = {}
+    for rule in spec.rules:
+        for pattern in rule.paths:
+            for path in root.glob(pattern):
+                if path.is_file() and not _skipped(path, root, SPEC_SKIP_DIRS):
+                    assigned.setdefault(path, rule)  # first matching rule wins
+    # markdown the spec does not cover still needs triage — surface it as
+    # orphans rather than silently leaving it behind
+    candidates = set(assigned)
+    candidates.update(p for p in root.rglob("*.md") if not _skipped(p, root, SPEC_SKIP_DIRS))
+    for path in sorted(candidates):
+        matched = assigned.get(path)
+        entries = parse_file_with_rule(path, matched) if matched else []
+        scan = _file_scan(path, entries, root)
+        (report.scans if entries else report.orphans).append(scan)
+    return report
+
+
+def _excerpt(path: Path, max_chars: int = 110) -> str:
+    text = path.read_text(encoding="utf-8", errors="replace")
+    first = [line.strip() for line in text.splitlines() if line.strip()][:2]
+    joined = " · ".join(first) or "(empty)"
+    return joined[: max_chars - 1] + "…" if len(joined) > max_chars else joined
 
 
 def format_report(report: IntakeReport) -> str:
@@ -95,6 +137,8 @@ def format_report(report: IntakeReport) -> str:
     lines.append(
         f"**{total} entries** across {len(report.scans)} files; {len(report.orphans)} files with no dated entries."
     )
+    if report.spec is not None:
+        lines.append(f"Parsed with an extraction spec ({len(report.spec.rules)} source rules).")
     lines.append("")
     lines.append("| File | Entries | Date range | Lines |")
     lines.append("|---|---|---|---|")
@@ -103,11 +147,13 @@ def format_report(report: IntakeReport) -> str:
         lo, hi = scan.date_range or ("—", "—")
         lines.append(f"| {rel} | {len(scan.entries)} | {lo} → {hi} | {scan.line_count} |")
     if report.orphans:
+        max_shown = 20
         lines.append("")
-        lines.append(
-            "**No dated entries (need triage):** "
-            + ", ".join(str(s.path.relative_to(report.root)) for s in report.orphans)
-        )
+        lines.append(f"**No dated entries ({len(report.orphans)} files, need triage):**")
+        for scan in report.orphans[:max_shown]:
+            lines.append(f"- {scan.path.relative_to(report.root)} — {_excerpt(scan.path)}")
+        if len(report.orphans) > max_shown:
+            lines.append(f"- … and {len(report.orphans) - max_shown} more")
     exact = report.exact_duplicates
     if exact:
         lines.append("")

@@ -8,6 +8,7 @@ drop (see fixtures/parser/README.md), no code change here.
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 
 import pytest
@@ -23,6 +24,8 @@ PARSER_FIXTURES = sorted(p for p in FIXTURES_DIR.glob("*.md") if p.with_suffix("
 
 def _assert_entry(entry: Entry, expected: dict) -> None:
     assert entry.date.isoformat() == expected["date"]
+    if "time" in expected:
+        assert entry.time == expected["time"]
     if "title" in expected:
         assert entry.title == expected["title"]
     if "header_level" in expected:
@@ -38,7 +41,14 @@ def _assert_entry(entry: Entry, expected: dict) -> None:
 @pytest.mark.parametrize("fixture_path", PARSER_FIXTURES, ids=[f.stem for f in PARSER_FIXTURES])
 def test_parser_format(fixture_path: Path) -> None:
     expected = json.loads(fixture_path.with_suffix(".expected.json").read_text(encoding="utf-8"))
-    entries = parse_markdown(fixture_path.read_text(encoding="utf-8"), fixture_path)
+    # a fixture may declare the extraction-spec header regex / date format it
+    # needs, exercising foreign formats through the same harness
+    kwargs: dict = {}
+    if "header" in expected:
+        kwargs["header_re"] = re.compile(expected["header"])
+    if "date_format" in expected:
+        kwargs["date_format"] = expected["date_format"]
+    entries = parse_markdown(fixture_path.read_text(encoding="utf-8"), fixture_path, **kwargs)
 
     assert len(entries) == len(expected["entries"]), expected.get("description", fixture_path.stem)
     for entry, exp in zip(entries, expected["entries"], strict=True):

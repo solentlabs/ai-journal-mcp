@@ -307,3 +307,28 @@ def test_old_schema_index_rebuilds_instead_of_crashing(journals):
     conn.commit()
     conn.close()
     assert server.entries_over_time(tag="receipt") == [{"month": "2026-06", "entries": 1}]
+
+
+def test_discover_journal_and_scan_source_tools(make_journal):
+    # the MCP side of the intake loop: evidence + spec dry-run, both read-only
+    from test_spec_intake import WORK_FILES, WORK_SPEC
+
+    root = make_journal(WORK_FILES)
+    evidence = server.discover_journal(str(root))
+    assert "entries/YYYY-MM/YYYY-MM-DD.md" in evidence
+    assert "## Next steps" in evidence
+
+    plain = server.scan_source(str(root))
+    assert "0 entries" in plain  # default parser is blind to this layout
+    with_spec = server.scan_source(str(root), spec_toml=WORK_SPEC)
+    assert "4 entries" in with_spec
+    assert "README.md" in with_spec  # orphan surfaced for triage
+    assert not (root / "attic").exists()  # nothing written
+
+
+def test_scan_source_rejects_bad_spec_and_bad_path(make_journal, tmp_path):
+    root = make_journal({"log.md": "## 2026-06-01: A\n\nbody\n"})
+    with pytest.raises(ValueError, match="bad extraction spec"):
+        server.scan_source(str(root), spec_toml='[[source]]\npaths = ["*.md"]\n')
+    with pytest.raises(ValueError, match="not a directory"):
+        server.discover_journal(str(tmp_path / "nope"))

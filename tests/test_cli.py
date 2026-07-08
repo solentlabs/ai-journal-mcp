@@ -194,3 +194,48 @@ def test_cli_search_malformed_query_prints_message_not_traceback(make_journal, t
     capsys.readouterr()
     assert main(["search", "(", "--db", str(db)]) == 1
     assert "invalid search query" in capsys.readouterr().out
+
+
+def test_cli_discover_and_spec_migrate_flow(make_journal, tmp_path, capsys):
+    # the intake loop end to end: discover evidence -> spec -> dry-run -> apply.
+    # The journal already has an entries/ dir (foreign layout), which blocks a
+    # spec-less migrate but must not block a spec-driven one.
+    from test_spec_intake import WORK_FILES, WORK_SPEC
+
+    root = make_journal(WORK_FILES)
+    assert main(["discover", str(root)]) == 0
+    out = capsys.readouterr().out
+    assert "entries/YYYY-MM/YYYY-MM-DD.md" in out
+    assert "## Next steps" in out
+
+    spec_path = tmp_path / "spec.toml"
+    spec_path.write_text(WORK_SPEC, encoding="utf-8")
+    assert main(["scan", str(root), "--spec", str(spec_path)]) == 0
+    assert "4 entries" in capsys.readouterr().out
+
+    assert main(["migrate", str(root), "--apply"]) == 1  # no spec: looks managed
+    assert "refusing" in capsys.readouterr().out
+    assert main(["migrate", str(root), "--spec", str(spec_path), "--apply"]) == 0
+    assert "Wrote 4 entries" in capsys.readouterr().out
+
+
+def test_cli_discover_missing_dir(tmp_path, capsys):
+    assert main(["discover", str(tmp_path / "nope")]) == 1
+    assert "not a directory" in capsys.readouterr().out
+
+
+def test_cli_bad_spec_is_a_message_not_a_traceback(make_journal, tmp_path, capsys):
+    root = make_journal(CLI_FILES)
+    spec_path = tmp_path / "spec.toml"
+    spec_path.write_text('[[source]]\npaths = ["*.md"]\n', encoding="utf-8")  # no extractor
+    assert main(["scan", str(root), "--spec", str(spec_path)]) == 1
+    assert "Bad extraction spec" in capsys.readouterr().out
+    assert main(["migrate", str(root), "--spec", str(tmp_path / "missing.toml")]) == 1
+    assert "Bad extraction spec" in capsys.readouterr().out
+
+
+def test_cli_migrate_apply_zero_entries_refuses(make_journal, capsys):
+    root = make_journal({"notes.md": "# undated planning doc\n"})
+    assert main(["migrate", str(root), "--apply"]) == 1
+    assert "no entries" in capsys.readouterr().out
+    assert (root / "notes.md").exists()  # nothing was moved to attic

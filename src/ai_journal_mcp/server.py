@@ -13,8 +13,11 @@ from mcp.server.fastmcp import FastMCP
 
 from . import indexer, tasks
 from .config import DEFAULT_DB, load_config
+from .discover import discover, format_discovery
+from .intake import format_report, scan_journal
 from .migrate import refresh_views
 from .model import Entry
+from .spec import SpecError, parse_spec
 from .store import load_source, write_entry
 
 mcp = FastMCP("ai-journal-mcp")
@@ -291,6 +294,42 @@ def get_task(journal: str, task_id: str) -> dict:
         "entries": task.entries,
         "body": task.body,
     }
+
+
+def _source_dir(path: str) -> Path:
+    root = Path(path).expanduser()
+    if not root.is_dir():
+        raise ValueError(f"{path} is not a directory")
+    return root
+
+
+@mcp.tool()
+def discover_journal(path: str) -> str:
+    """Evidence report about an unfamiliar journal directory (read-only): file
+    name patterns, heading shapes, frontmatter keys, and excerpts — no parsing
+    decisions. Use it when intake of an existing journal finds 0 entries or an
+    unknown layout: read the evidence, propose an extraction spec (TOML schema
+    is in the report's Next steps), validate with scan_source, and iterate
+    until the dry-run accounts for every file. Applying the migration is
+    CLI-only, run by the user: `ai-journal-mcp migrate ROOT --spec SPEC --apply`."""
+    return format_discovery(discover(_source_dir(path)))
+
+
+@mcp.tool()
+def scan_source(path: str, spec_toml: str | None = None) -> str:
+    """Dry-run intake report for a journal directory (read-only): entries per
+    file, date ranges, duplicates, and files with no dated entries (with
+    excerpts, for triage). Pass spec_toml — an extraction spec from the
+    discover_journal loop — to parse foreign formats instead of the default
+    headers. Nothing is written; use it to prove a spec extracts everything
+    before the user applies the migration."""
+    spec = None
+    if spec_toml:
+        try:
+            spec = parse_spec(spec_toml)
+        except SpecError as exc:
+            raise ValueError(f"bad extraction spec: {exc}") from exc
+    return format_report(scan_journal(_source_dir(path), spec=spec))
 
 
 @mcp.tool()
