@@ -8,24 +8,20 @@ choices, see `ARCHITECTURE_DECISIONS.md`; for exact formats, see
 
 ## System Overview
 
-```text
-                 journals.toml (config: name, path, mode)
-                          │
-        ┌─────────────────┼──────────────────┐
-        ▼                 ▼                  ▼
-  managed journal   indexed journal    indexed journal
-  (entries/YYYY-MM, (file or dir,      (file or dir,
-   tasks/)           read-only)         read-only)
-        │ store/tasks         │ parser/intake (in place)
-        └────────┬────────────┴──────────┘
-                 ▼
-          indexer (SQLite + FTS5, disposable)
-                 ▼
-        ┌────────┴────────┐
-        ▼                 ▼
-   MCP server (stdio)   CLI (ai-journal-mcp)
-   search/get/add/      init/scan/migrate/consolidate/
-   tasks/...            reindex/search/refresh/serve
+```mermaid
+flowchart TD
+    config["journals.toml<br/>(config: name, path, mode)"]
+
+    config --> managed["managed journal<br/>entries/YYYY-MM, tasks/"]
+    config --> indexed1["indexed journal<br/>file or dir, read-only"]
+    config --> indexed2["indexed journal<br/>file or dir, read-only"]
+
+    managed -->|"store / tasks"| indexer[("indexer<br/>SQLite + FTS5, disposable")]
+    indexed1 -->|"parser / intake (in place)"| indexer
+    indexed2 -->|"parser / intake (in place)"| indexer
+
+    indexer --> server["MCP server (stdio)<br/>search / get / add / tasks / ..."]
+    indexer --> cli["CLI (ai-journal-mcp)<br/>init / scan / migrate / consolidate /<br/>reindex / search / refresh / serve"]
 ```
 
 ## Components
@@ -54,6 +50,39 @@ library modules depend only downward (`consolidate` → `archive`/`migrate`;
 `parser`; `discover` → `parser`; `indexer` → `model`/`tasks`;
 writers → `fsio`). Nothing imports `server.py` or `cli.py`.
 
+```mermaid
+flowchart TD
+    subgraph entry ["entry points · depend on all library modules · imported by nothing"]
+        server["server.py"]
+        cli["cli.py"]
+    end
+
+    entry --> consolidate["consolidate.py"]
+    entry --> discover["discover.py"]
+    entry --> intake["intake.py"]
+    entry --> store["store.py"]
+    entry --> indexer["indexer.py"]
+    entry --> config["config.py"]
+
+    consolidate --> archive["archive.py"]
+    consolidate --> migrate["migrate.py"]
+    discover --> parser["parser.py"]
+    intake --> spec["spec.py"]
+    intake --> parser
+    spec --> parser
+    store --> parser
+    migrate --> parser
+    parser --> model["model.py"]
+    indexer --> model
+    indexer --> tasks["tasks.py"]
+
+    store --> fsio["fsio.py"]
+    tasks --> fsio
+    migrate --> fsio
+    indexer --> fsio
+    config --> fsio
+```
+
 ## Journal Modes
 
 - **managed** — ai-journal-mcp owns the layout: one entry per file under
@@ -66,6 +95,28 @@ writers → `fsio`). Nothing imports `server.py` or `cli.py`.
   modified or restructured. For journals with their own working conventions.
 
 ## Data Flow: the Four Paths
+
+```mermaid
+flowchart TB
+    subgraph capture ["Capture · add_entry"]
+        direction LR
+        cap1["store.write_entry"] --> cap2["refresh_views()"] --> cap3["rebuild search index"]
+    end
+    subgraph query ["Query · search_journal, ..."]
+        direction LR
+        qy1["indexer (SQLite + FTS5)"] --> qy2["rebuilt from sources if missing"]
+    end
+    subgraph track ["Track · add_task / update_task / list_tasks"]
+        direction LR
+        tr1["tasks.py (rewritten in place)"] -.->|"complete + reflection"| tr2["graduates into a dated entry"]
+    end
+    subgraph intake ["Intake"]
+        direction LR
+        in1["scan → dry-run report"] --> in2["migrate --apply → managed layout"] --> in3["originals moved to attic/, never deleted"]
+        in4["consolidate → merge sources"] --> in5["archive.py verifies tarball, then removes sources"]
+    end
+    capture ~~~ query ~~~ track ~~~ intake
+```
 
 **Capture** (`add_entry` tool → `store.write_entry`): writes a canonical entry
 file, then `migrate.refresh_views()` regenerates the index/theme views, then
