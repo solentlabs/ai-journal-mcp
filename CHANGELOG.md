@@ -5,6 +5,24 @@ versions follow [SemVer](https://semver.org/) (0.x: minor may break).
 
 ## Unreleased
 
+- **Task titles are editable; the task id stays the stable handle.**
+  `update_task` gains `title` (core and MCP). The id is slugified from the
+  title once at creation and thereafter frozen — it is the filename, the key
+  `blocked_by` points at, and the handle callers hold — so a retitle never
+  renames the file or regenerates the id, and id/title divergence is an
+  expected state. This matters most at graduation: `reflection` writes the
+  task's title into a permanent journal entry, so a title whose claim has
+  drifted was previously uncorrectable at exactly the moment it was frozen.
+  Passing `title` and `reflection` in the same call writes the corrected
+  title. Search picks a retitle up on the next query with no explicit
+  reindex, and `list_tasks` reads markdown directly.
+- **Empty or whitespace-only task titles are rejected** by both `add_task`
+  and `update_task` — such a title sorts blank in listings and would write an
+  untitled journal entry on graduation. The check judges the supplied
+  argument, never a title already on disk, so a hand-made task with a blank
+  title stays closable and can be repaired by passing a real title.
+- **Architecture docs render as mermaid diagrams** — overview, dependency,
+  and data-flow.
 - **MCP server instructions state the journal/memory division of labor.**
   Every client surfaces them to the model at session start: dated events,
   decisions, and lessons go in the journal via `add_entry`; agent memory
