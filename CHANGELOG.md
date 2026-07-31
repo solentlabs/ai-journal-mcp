@@ -3,7 +3,7 @@
 Notable changes per release. Format follows [Keep a Changelog](https://keepachangelog.com/);
 versions follow [SemVer](https://semver.org/) (0.x: minor may break).
 
-## Unreleased
+## 0.5.0 — 2026-07-31
 
 - **Task titles are editable; the task id stays the stable handle.**
   `update_task` gains `title` (core and MCP). The id is slugified from the
