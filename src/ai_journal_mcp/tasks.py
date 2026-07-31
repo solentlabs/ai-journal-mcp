@@ -66,11 +66,18 @@ def _task_path(root: Path, task_id: str) -> Path:
     return _tasks_dir(root) / f"{task_id}.md"
 
 
-def _validate(status: str, priority: str) -> None:
+def _validate(status: str, priority: str, title: str | None = None) -> None:
     if status not in STATUSES:
         raise TaskError(f"status must be one of {STATUSES}, got {status!r}")
     if priority not in PRIORITIES:
         raise TaskError(f"priority must be one of {PRIORITIES}, got {priority!r}")
+    # Always the caller's *argument*, never a title loaded from disk. An empty
+    # title is not cosmetic — it sorts blank in sorted_tasks and, on graduation,
+    # writes a permanent untitled journal entry — but judging stored state would
+    # wedge an already-bad task: every update would fail, including the retitle
+    # that fixes it and the status="done" that closes it.
+    if title is not None and not title.strip():
+        raise TaskError("title must not be empty or whitespace-only")
 
 
 def _write(task: Task) -> None:
@@ -99,7 +106,7 @@ def create_task(
     tags: list[str] | None = None,
 ) -> Task:
     """Create a new task (status ``open``) under ``<root>/tasks/``."""
-    _validate("open", priority)
+    _validate("open", priority, title)
     tasks_dir = _tasks_dir(root)
     tasks_dir.mkdir(parents=True, exist_ok=True)
     today = date.today().isoformat()
@@ -188,6 +195,7 @@ def update_task(
     entries: list[str] | None = None,
     body: str | None = None,
     tags: list[str] | None = None,
+    title: str | None = None,
     reflection: str | None = None,
     themes: list[str] | str | None = None,
     when: date | None = None,
@@ -199,6 +207,15 @@ def update_task(
     completed-past bridge: a new entry is written (title from the task, body =
     ``reflection``, optional ``themes``) and linked back via ``entries``. Omit
     ``reflection`` to just close or edit the task without writing an entry.
+
+    ``title`` is display data and is editable; the id is the stable handle and
+    deliberately does *not* follow it. The id was slugified from the title once
+    at creation and is the filename, the key ``blocked_by`` entries point at,
+    and what callers hold — regenerating it on retitle would break all three.
+    Retitling matters most at graduation: ``reflection`` freezes the title into
+    a permanent entry, so a title whose claim has drifted must be correctable
+    right up to that moment — passing ``title`` and ``reflection`` in the same
+    call writes the corrected title, since the retitle lands first.
     """
     with journal_lock(root):  # read-modify-write: concurrent updates must not drop fields
         task = get_task(root, task_id)
@@ -214,9 +231,11 @@ def update_task(
             task.body = body
         if tags is not None:
             task.tags = list(tags)
+        if title is not None:
+            task.title = title  # id and filename stay frozen — see docstring
         # validate before the reflection write — a rejected update must not
         # leave an orphaned entry on disk
-        _validate(task.status, task.priority)
+        _validate(task.status, task.priority, title)
         if reflection is not None:
             from .store import write_entry
 

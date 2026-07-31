@@ -124,6 +124,112 @@ def test_update_with_reflection_graduates_to_entry(tmp_path):
     assert "writing" in entry.themes
 
 
+def test_retitled_task_graduates_under_the_new_title(tmp_path):
+    """The motivating harm: `reflection` freezes task.title into a permanent
+    entry. A title whose factual claim has drifted (here, a stash index that
+    moved when a newer stash was pushed on top) must be correctable right up to
+    that moment, or the wrong claim becomes the durable record."""
+    from ai_journal_mcp.store import load_managed
+
+    t = create_task(tmp_path, "Decide fate of stash@{0}", body="notes")
+    update_task(tmp_path, t.id, title="Decide fate of the intake scorecard stash (sha 8919547f)")
+    done = update_task(tmp_path, t.id, status="done", reflection="Reviewed and kept.", when=date(2026, 6, 20))
+    [entry] = load_managed(tmp_path)
+    assert entry.title == "Decide fate of the intake scorecard stash (sha 8919547f)"
+    assert "stash@{0}" not in entry.title
+    # the entry file is named after the corrected title, and is linked back onto
+    # the task — whose own id still carries the old slug, as designed
+    assert any("intake-scorecard-stash" in e for e in done.entries)
+    assert done.id == "decide-fate-of-stash-0"
+
+
+def test_retitle_changes_title_on_disk_only(tmp_path):
+    t = create_task(tmp_path, "Original Title", body="body stays")
+    upd = update_task(tmp_path, t.id, title="Corrected Title")
+    assert upd.title == "Corrected Title"
+    # id, filename, and every other field are untouched
+    assert upd.id == t.id == "original-title"
+    assert upd.path == t.path and t.path.exists()
+    assert sorted(p.name for p in (tmp_path / "tasks").glob("*.md")) == ["original-title.md"]
+    reloaded = get_task(tmp_path, "original-title")  # still reachable by the id the caller holds
+    assert reloaded.title == "Corrected Title"
+    assert reloaded.body == "body stays"
+
+
+def test_blocked_by_survives_a_retitle(tmp_path):
+    """blocked_by points at ids, so a blocker's retitle must not orphan it."""
+    blocker = create_task(tmp_path, "Blocker Task")
+    waiter = create_task(tmp_path, "Waiting Task", blocked_by=[blocker.id])
+    update_task(tmp_path, blocker.id, title="Blocker Task, Reworded")
+    by_id = {t.id: t for t in load_tasks(tmp_path)}
+    assert by_id[waiter.id].blocked_by == [blocker.id]
+    assert not is_ready(by_id[waiter.id], by_id)  # blocker still resolves, still open
+    update_task(tmp_path, blocker.id, status="done")
+    by_id = {t.id: t for t in load_tasks(tmp_path)}
+    assert is_ready(by_id[waiter.id], by_id)
+
+
+def test_retitle_and_graduate_in_one_call(tmp_path):
+    """The likeliest real use: the title is noticed to be wrong at the moment
+    the task closes. The retitle must land *before* write_entry reads the title,
+    or the stale claim is frozen into the permanent entry anyway."""
+    from ai_journal_mcp.store import load_managed
+
+    t = create_task(tmp_path, "Decide fate of stash@{0}", body="notes")
+    done = update_task(
+        tmp_path,
+        t.id,
+        status="done",
+        title="Decide fate of the intake scorecard stash",
+        reflection="Reviewed and kept.",
+        when=date(2026, 6, 20),
+    )
+    [entry] = load_managed(tmp_path)
+    assert entry.title == "Decide fate of the intake scorecard stash"
+    assert done.title == entry.title
+
+
+@pytest.mark.parametrize("bad_title", ["", "   ", "\n\t "])
+def test_empty_title_rejected(tmp_path, bad_title):
+    t = create_task(tmp_path, "Keeps Its Name")
+    with pytest.raises(TaskError, match="title must not be empty"):
+        update_task(tmp_path, t.id, title=bad_title)
+    assert get_task(tmp_path, t.id).title == "Keeps Its Name"  # nothing written
+
+
+@pytest.mark.parametrize("bad_title", ["", "   ", "\n\t "])
+def test_empty_title_rejected_at_creation_too(tmp_path, bad_title):
+    # else the front door creates exactly the state update_task refuses —
+    # slugify() maps a blank title to the shared id "untitled"
+    with pytest.raises(TaskError, match="title must not be empty"):
+        create_task(tmp_path, bad_title)
+    assert load_tasks(tmp_path) == []
+
+
+def test_a_blank_titled_task_stays_updatable_and_fixable(tmp_path):
+    """Regression: validating the *stored* title instead of the argument wedged
+    a hand-made task with a blank title — every update failed, including the
+    retitle that fixes it and the close that ends it. Judge the caller's input,
+    never state already on disk (cf. load_tasks skipping malformed files)."""
+    tasks_dir = tmp_path / "tasks"
+    tasks_dir.mkdir()
+    (tasks_dir / "legacy.md").write_text("---\ntitle: '   '\nstatus: open\npriority: low\n---\n\nbody\n")
+    assert update_task(tmp_path, "legacy", status="done").status == "done"  # closing still works
+    fixed = update_task(tmp_path, "legacy", title="A Real Title")  # and it can be repaired
+    assert fixed.title == "A Real Title"
+    assert fixed.id == "legacy"
+
+
+def test_rejected_retitle_writes_no_orphan_entry(tmp_path):
+    """Title is validated before the reflection write, like status/priority."""
+    from ai_journal_mcp.store import load_managed
+
+    t = create_task(tmp_path, "Has A Title")
+    with pytest.raises(TaskError, match="title must not be empty"):
+        update_task(tmp_path, t.id, title="  ", reflection="orphan text")
+    assert load_managed(tmp_path) == []
+
+
 def test_update_without_reflection_writes_no_entry(tmp_path):
     from ai_journal_mcp.store import load_managed
 

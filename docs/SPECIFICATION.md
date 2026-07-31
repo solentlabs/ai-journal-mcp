@@ -34,6 +34,19 @@ Path: `<root>/tasks/<id>.md`, where `id` is the slug of the title (same slug
 rules; collisions get `-2`, … suffixes). Unlike entries, tasks are **mutable** —
 the file is rewritten in place on update.
 
+**Task identity.** The `id` is slugified from the title *once, at creation*, and
+is thereafter frozen: it is the filename, the key `blocked_by` lists point at,
+and the handle callers hold. `title` is display data and stays editable via
+`update_task(title=…)`; the id does **not** follow it, so id/title divergence is
+an expected state (collision suffixes already produce it). Retitling never
+renames the file or regenerates the id.
+
+An empty or whitespace-only title is rejected at both entry points — it would
+sort blank in listings and, on graduation, write an untitled journal entry. The
+check judges the *argument*, never a title already on disk: a hand-made file
+whose title is blank stays updatable, so it can still be closed and still be
+repaired by passing a real `title`.
+
 ```markdown
 ---
 title: Cut the 0.1.0 release
@@ -249,8 +262,8 @@ work records from accumulating redundantly outside the journal.
 | `list_themes()` | Rows of `theme`, `journal`, `entries` (count); unthemed shown as `(unthemed)` |
 | `suggest_themes(text, limit=5)` | Existing themes ranked by FTS similarity to `text`; suggestion only, writes nothing |
 | `entries_over_time(theme?, journal?, tag?)` | Rows of `month`, `entries` (count), ascending; filter by theme, tag, or journal — the frequency evidence behind a recurring pattern (UC8) |
-| `add_task(journal, title, body?, priority=medium, blocked_by?, entries?, tags?)` | Create a task (status `open`) in a managed journal; returns its id |
-| `update_task(journal, task_id, status?, priority?, blocked_by?, entries?, body?, tags?, reflection?, themes?, entry_date?)` | Mutate a task in place (only passed fields change). Pass `reflection` to also graduate it into a dated journal entry — the planned-future → completed-past bridge: writes an entry (title from the task, body = `reflection`, optional `themes`) and links it back |
+| `add_task(journal, title, body?, priority=medium, blocked_by?, entries?, tags?)` | Create a task (status `open`) in a managed journal; returns its id. Empty/whitespace-only titles are rejected |
+| `update_task(journal, task_id, status?, priority?, blocked_by?, entries?, body?, tags?, title?, reflection?, themes?, entry_date?)` | Mutate a task in place (only passed fields change). `title` is editable; the id and filename deliberately do not follow it (§ Task identity). Empty/whitespace-only titles are rejected. Pass `title` and `reflection` together to correct a stale title in the same call that graduates it — the entry gets the corrected one. Pass `reflection` to also graduate it into a dated journal entry — the planned-future → completed-past bridge: writes an entry (title from the task, body = `reflection`, optional `themes`) and links it back |
 | `list_tasks(journal?, status?, priority?, tag?)` | Tasks, open/high-priority first; each carries `ready`, `tags`, and `entries` |
 | `get_task(journal, task_id)` | Full task detail incl. `entries` to pull context via `get_entry` |
 | `discover_journal(path)` | Read-only evidence report (§3a) about any directory — need not be configured. The LLM-side start of the intake loop |

@@ -95,30 +95,42 @@ Four capabilities, one local MCP server:
 
 ## Quickstart
 
+Start with zero commitment: point ai-journal-mcp at notes you already have and
+get search immediately — nothing migrated, nothing rewritten. (This
+point-it-at-your-files-and-go start is borrowed from
+[mcp-obsidian](https://github.com/MarkusPfundstein/mcp-obsidian), whose
+instant, no-buy-in setup is a big part of why it works so well.)
+
 Install from PyPI (Python 3.11+):
 
 ```bash
 pip install "ai-journal-mcp[server]"   # MCP server + CLI; drop [server] for CLI-only
 ```
 
-Register your journals in `~/.config/ai-journal-mcp/journals.toml`:
+Register a journal you already keep in `~/.config/ai-journal-mcp/journals.toml`:
 
 ```toml
-[[journal]]
-name = "technical"
-path = "~/journal"
-mode = "managed"            # ai-journal-mcp owns the layout
-
 [[journal]]
 name = "deal-research"
 path = "~/research/deals"
 mode = "indexed"            # read-only; searched but never rewritten
 ```
 
-Wire it into Claude Code as an MCP server:
+Wire it into Claude Code as an MCP server, then ask it a question:
 
 ```bash
 claude mcp add ai-journal-mcp -- ai-journal-mcp serve
+```
+
+That's the whole setup for recall. When you want ai-journal-mcp to *maintain*
+a journal for you — canonical entry files, generated views, tasks — add a
+managed one alongside it:
+
+```toml
+[[journal]]
+name = "technical"
+path = "~/journal"
+mode = "managed"            # ai-journal-mcp owns the layout
 ```
 
 Querying happens through the server (it builds and refreshes the index for

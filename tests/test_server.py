@@ -108,6 +108,56 @@ def test_update_task_with_reflection_graduates_into_searchable_entry(journals):
     assert any("write-up-the-migration-audit" in e for e in fetched["entries"])
 
 
+def test_update_task_retitles_without_moving_the_id(journals):
+    created = server.add_task("technical", "Decide fate of stash@{0}", body="notes")
+    res = server.update_task("technical", created["id"], title="Decide fate of the intake scorecard stash")
+    assert res["title"] == "Decide fate of the intake scorecard stash"
+    assert res["id"] == created["id"] == "decide-fate-of-stash-0"
+    assert (journals / "tasks" / "decide-fate-of-stash-0.md").exists()
+    assert server.get_task("technical", created["id"])["title"] == "Decide fate of the intake scorecard stash"
+
+
+def test_retitle_is_visible_to_search_without_an_explicit_reindex(journals):
+    """A plain field update skips refresh_views/_reindex on purpose. That is safe
+    because source_signature() covers tasks/*.md, so the next search rebuilds —
+    a mutable title must not be able to serve a stale one indefinitely."""
+    created = server.add_task("technical", "Original Title", body="task body")
+    assert server.search_journal("Original")[0]["title"] == "Original Title"  # builds the index
+    server.update_task("technical", created["id"], title="Corrected Scorecard Title")
+    hits = server.search_journal("Scorecard")
+    assert hits and hits[0]["title"] == "Corrected Scorecard Title"
+    assert hits[0]["kind"] == "task"
+    assert server.search_journal("Original") == []  # the old title is gone, not merely outranked
+    # list_tasks reads markdown directly and never consults the index at all
+    assert [t["title"] for t in server.list_tasks(journal="technical")] == ["Corrected Scorecard Title"]
+
+
+def test_update_task_rejects_an_empty_title(journals):
+    created = server.add_task("technical", "Keeps Its Name")
+    with pytest.raises(ValueError, match="title must not be empty"):
+        server.update_task("technical", created["id"], title="   ")
+    assert server.get_task("technical", created["id"])["title"] == "Keeps Its Name"
+    with pytest.raises(ValueError, match="title must not be empty"):
+        server.add_task("technical", "   ")
+
+
+def test_retitle_and_graduate_in_one_call_through_the_tools(journals):
+    created = server.add_task("technical", "Decide fate of stash@{0}", body="notes")
+    res = server.update_task(
+        "technical",
+        created["id"],
+        status="done",
+        title="Decide fate of the intake scorecard stash",
+        reflection="Reviewed and kept.",
+    )
+    assert res["title"] == "Decide fate of the intake scorecard stash"
+    entry_text = server.get_entry(str(journals / res["entry"]))
+    assert "Decide fate of the intake scorecard stash" in entry_text
+    assert "stash@{0}" not in entry_text
+    # and the graduated entry is searchable under the corrected title
+    assert server.search_journal("intake scorecard stash")[0]["title"] == res["title"]
+
+
 def test_add_entry_rejects_bad_targets(journals):
     with pytest.raises(ValueError, match="read-only"):
         server.add_entry("deals", "Nope", "body")

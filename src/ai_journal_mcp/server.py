@@ -210,6 +210,7 @@ def update_task(
     entries: list[str] | None = None,
     body: str | None = None,
     tags: list[str] | None = None,
+    title: str | None = None,
     reflection: str | None = None,
     themes: list[str] | str | None = None,
     entry_date: str | None = None,
@@ -219,7 +220,15 @@ def update_task(
     `reflection` to graduate the task into a journal entry as you complete it
     (title from the task, body = reflection, optional `themes`) — the
     planned-future to completed-past bridge; the entry is written, linked, and
-    indexed. Omit it to just update fields."""
+    indexed. Omit it to just update fields.
+
+    `title` can be changed — correct one whose wording has drifted rather than
+    working around it in the body. The task id deliberately does NOT follow the
+    title: it stays the stable handle other tasks reference in `blocked_by` and
+    the one you keep using here. Since `reflection` writes the current title
+    into a permanent entry, fix a stale title no later than the call that
+    graduates it — passing `title` and `reflection` together works, and the
+    entry gets the corrected title."""
     root = _managed_root(journal)
     when = date.fromisoformat(entry_date) if entry_date else None
     try:
@@ -232,13 +241,20 @@ def update_task(
             entries=entries,
             body=body,
             tags=tags,
+            title=title,
             reflection=reflection,
             themes=themes,
             when=when,
         )
     except tasks.TaskError as exc:
         raise ValueError(str(exc)) from exc
-    result: dict[str, object] = {"id": task.id, "status": task.status, "priority": task.priority, "tags": task.tags}
+    result: dict[str, object] = {
+        "id": task.id,
+        "title": task.title,  # echoed so a retitle is confirmable, and to show the id did not follow
+        "status": task.status,
+        "priority": task.priority,
+        "tags": task.tags,
+    }
     if reflection is not None:
         skipped: list[str] = []
         refresh_views(root, skipped=skipped)
