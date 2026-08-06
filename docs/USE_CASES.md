@@ -17,6 +17,13 @@ consistent after the single call.
 than not capturing, from any session, with no format discipline required of
 the human.
 
+**When nobody remembers:** capture still depends on someone raising it, at the
+moment they're deepest in the work. The optional auto-capture hook
+(`hooks/README.md`) closes that gap from the other side: after a substantive
+session with no entry written, it puts one suggestion in front of the model at
+a turn boundary. It never writes an entry itself — the judgment about what is
+worth keeping stays with the human.
+
 ## UC2 — Ask questions of your own history
 
 **Situation:** "What do I keep relearning about contributor management?"
@@ -82,7 +89,7 @@ upkeep was a human chore. Structural prevention beats scheduled cleanup.
 **Situation:** Another developer wants the same capture/query/intake loop
 for their own journals.
 
-**Flow:** `pip install ai-journal-mcp`, write `journals.toml`, `claude mcp add
+**Flow:** `pip install "ai-journal-mcp[server]"`, write `journals.toml`, `claude mcp add
 ai-journal-mcp -- ai-journal-mcp serve`, run `scan`/`migrate` on whatever they have.
 Shippable Claude Code skills (capture + maintenance) package the habit, not
 just the engine.

@@ -287,6 +287,81 @@ process death, so a crashed session can't wedge the journal. Windows has no
 flock — there the lock degrades to a no-op and the atomic-write guarantees
 remain (documented, acceptable for a POSIX-first tool).
 
+## Auto-capture nudges; it never writes
+
+**Decision:** Capture can fire automatically from a Claude Code `Stop` hook
+that injects a non-blocking `additionalContext` nudge when a session has done
+substantive work and called no `add_entry`. The hook never writes an entry — it
+points the model at the `capture` skill, which drafts one and confirms with the
+user. The decision lives in the library (`capture.py`) behind one CLI
+subcommand, `ai-journal-mcp hook`, which reads a hook payload on stdin and
+dispatches on `hook_event_name`; all three events below point at that same
+command, so installation is JSON with no shell logic in it.
+
+- **Trigger: `Stop`.** It fires at the end of each assistant turn and is the
+  only hook event that can add context to a live session without blocking it.
+  `SessionEnd` cannot inject context at all; `UserPromptSubmit` would land the
+  nudge in front of the user's next instruction rather than at a pause.
+- **Gate:** at most one nudge per session; only when a managed journal is
+  configured; only above a turn threshold (default: 8); only if `add_entry`
+  has not run this session. The nudge text asks for an offer at a natural
+  pause, not an interruption of work in progress.
+- **Counting:** the `Stop` hook *is* the counter — one invocation per
+  assistant turn, so the turn count needs no transcript parsing. A
+  `PostToolUse` matcher scoped to `mcp__ai-journal-mcp__add_entry` alone sets
+  the `journaled` flag, costing one extra process per journal write rather
+  than one per tool call. Nothing reads `transcript_path`: its JSONL shape is
+  internal to Claude Code and would break auto-capture silently on any change.
+- **State:** `~/.local/state/ai-journal-mcp/capture/<session_id>.json` holds
+  the turn count, the `journaled` flag, and the `nudged` flag. Keyed by
+  session so concurrent sessions cannot clobber each other's counters; a
+  `SessionEnd` hook removes it.
+- **Config:** a `[capture]` table in `journals.toml` for thresholds and an off
+  switch. Installing the hook is itself the opt-in.
+
+**Rationale:** The recall half of the product is useless against entries that
+were never written, and capture competes with the work at exactly the moment
+the user is deepest in it. The MCP server cannot close that gap on its own —
+a stdio server only responds, it cannot initiate a turn — so the only
+component that can observe a session and speak into it is a client hook.
+
+The hook must not write the entry itself, for two reasons. There is no delete
+tool and entries are append-only (see "Attic over deletion"), so a
+false-positive auto-entry is permanent; and an entry's substance — the lesson,
+the themes, the blog angle — is judgment applied to the conversation, which a
+subprocess reading a transcript does badly. A nudge that misfires costs one
+line of context; a bad auto-entry degrades the archive that the whole tool
+exists to make searchable. Prior art
+([chrismbryant/claude-journal-mcp](https://github.com/chrismbryant/claude-journal-mcp),
+where the session-activity trigger and its state file come from) auto-captures
+on a message counter and pairs that with `journal_delete`; without a delete
+path the same aggressiveness is not available to us.
+
+Reading that hook also settled three details against it. It runs on
+`UserPromptSubmit` and writes to stdout unconditionally, so every prompt
+carries hook chatter into context whether or not a capture is due — `Stop`
+with a gated `additionalContext` stays silent until it has something to say.
+Its state is a single global file, so two concurrent sessions share one
+counter; keying by `session_id` costs nothing and removes the race. And it
+resets its counter when it *nudges* rather than when an entry is actually
+written, which is why it has to instruct the model that it "MUST respond to
+this trigger" — tracking the real `add_entry` call instead means a nudge that
+goes unanswered simply does not repeat, and the nudge needs no coercion.
+
+Keeping the decision in the library rather than the hook script follows the
+same rule that keeps `server.py` thin: a shell script that greps a transcript
+is untestable and unversioned. `capture.handle_event` returns the verdict and
+the nudge text; the CLI prints it.
+
+One consequence is deliberate and worth stating: `ai-journal-mcp hook` swallows
+every error and always exits 0. It runs on every assistant turn, so a hook that
+raised — on an unreadable config, an unwritable state directory, or a payload a
+future Claude Code release shapes differently — would put a failure notice in
+front of the user *every turn*. Auto-capture silently not firing is the better
+failure, and the surrounding code is written so that is the only one available:
+corrupt state restarts the counter, junk in `[capture]` falls back to defaults,
+and an absent `journals.toml` reads as "no managed journal, don't nudge."
+
 ## Known limitations, accepted deliberately
 
 Recorded so they read as decisions, not oversights. Each is cut until real
@@ -307,6 +382,10 @@ usage says otherwise:
 - **A frontmatter `date:` carrying a time component is stored verbatim**
   (`YYYY-MM-DDTHH:MM:SS`), which makes that entry compare oddly against
   `since`/`until` day bounds. Tool-written entries never do this.
+- **Auto-capture is Claude Code-only.** The `Stop`-hook trigger above is the
+  one deliberately client-specific piece of the product; other MCP clients get
+  manual capture. Hook APIs are per-client and there is no MCP-native way for
+  a server to initiate a turn, so a portable version does not exist to build.
 - **Atomic writes are not fsync'd.** `os.replace` guarantees readers and
   process crashes never see a truncated file; a *power loss* in the seconds
   after a write can still lose that write (not corrupt others). Journals are

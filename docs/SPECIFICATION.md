@@ -13,6 +13,7 @@ Path: `<root>/entries/YYYY-MM/DD-<slug>.md`
 ```markdown
 ---
 date: 'YYYY-MM-DD'
+time: '14:30'               # only when the source header carried one (§3a)
 title: The Title            # may be null for date-only entries
 themes:                     # zero or more; metadata, not storage location
 - development-practices
@@ -81,6 +82,18 @@ mode = "managed"          # "managed" | "indexed" (default "indexed")
 
 Only `managed` journals accept `add_entry`. A `managed` path must contain an
 `entries/` directory (created by migration or first write).
+
+An optional `[capture]` table tunes auto-capture (§10):
+
+```toml
+[capture]
+enabled = true      # false disables the nudge without uninstalling the hook
+min_turns = 8       # assistant turns before a session is worth capturing
+```
+
+Both keys are optional and the table may be absent entirely. A missing file,
+a malformed table, or a wrong-typed value falls back to the defaults shown —
+never an error, since a hook consults this on every turn.
 
 ## 3. Parser Rules (intake / indexed sources)
 
@@ -312,3 +325,31 @@ it.
 | `search <query> --db <path> [--limit/--theme/--since/--until]` | Query an index |
 | `refresh <root>` | Regenerate views per §6 |
 | `serve` | Run the MCP stdio server (requires `ai-journal-mcp[server]`) |
+| `hook` | Claude Code auto-capture hook (§10); reads a hook payload on stdin |
+
+## 10. Auto-Capture Hook
+
+`ai-journal-mcp hook` reads one Claude Code hook payload as JSON on stdin and
+dispatches on `hook_event_name`. Installed from `hooks/auto-capture.json`;
+installing it is the opt-in.
+
+| Event | Effect |
+|-------|--------|
+| `Stop` | Increments the session's turn count. Emits the nudge when auto-capture is enabled, a `managed` journal is configured, `turns >= min_turns`, and the session has neither journaled nor been nudged |
+| `PostToolUse` (matcher `mcp__ai-journal-mcp__add_entry`) | Marks the session as journaled; re-checks `tool_name` so a broader matcher can't disable capture |
+| `SessionEnd` | Deletes the session's state file |
+| anything else | Ignored |
+
+Output on a nudge is `{"hookSpecificOutput": {"hookEventName": "Stop",
+"additionalContext": …}}` — non-blocking, so the turn ends normally and the
+text is context the model may act on. Nothing is printed otherwise.
+
+State: `~/.local/state/ai-journal-mcp/capture/<session_id>.json`, holding
+`turns`, `journaled`, and `nudged`. Keyed by session, so concurrent sessions
+never share a counter; deletable at any time. A session id that is not a bare
+slug (separators, leading dot, empty) is rejected before it becomes a filename.
+
+**The hook never writes an entry**, and it never fails a turn: every error path
+exits 0 silently (§ADR "Auto-capture nudges; it never writes"). Corrupt state
+restarts the counter; junk in `[capture]` falls back to defaults; no
+`journals.toml` reads as "don't nudge".

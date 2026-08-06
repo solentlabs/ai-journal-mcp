@@ -21,7 +21,7 @@ flowchart TD
     indexed2 -->|"parser / intake (in place)"| indexer
 
     indexer --> server["MCP server (stdio)<br/>search / get / add / tasks / ..."]
-    indexer --> cli["CLI (ai-journal-mcp)<br/>init / scan / migrate / consolidate /<br/>reindex / search / refresh / serve"]
+    indexer --> cli["CLI (ai-journal-mcp)<br/>init / scan / migrate / consolidate /<br/>reindex / search / refresh / serve / hook"]
 ```
 
 ## Components
@@ -40,7 +40,8 @@ flowchart TD
 | `tasks.py` | The mutable task kind: create/update/list under `tasks/`, readiness from `blocked_by`, graduation into entries |
 | `indexer.py` | Build/query the SQLite FTS5 index: `search`, `list_themes`, `entries_over_time`, staleness signatures |
 | `fsio.py` | Concurrency primitives every writer uses: atomic replace, exclusive create, per-journal lock |
-| `config.py` | `journals.toml` loading; default config/db paths |
+| `capture.py` | Auto-capture: per-session counters and the nudge decision behind the Claude Code hook. Decides only — never writes an entry |
+| `config.py` | `journals.toml` loading (journals + `[capture]`); default config/db/state paths |
 | `server.py` | MCP stdio server — thin layer over the library |
 | `cli.py` | Command-line entry points — thin layer over the library |
 
@@ -48,7 +49,9 @@ Dependency direction: `server.py` and `cli.py` depend on everything;
 library modules depend only downward (`consolidate` → `archive`/`migrate`;
 `store`/`intake`/`migrate` → `parser` → `model`; `intake` → `spec` →
 `parser`; `discover` → `parser`; `indexer` → `model`/`tasks`;
-writers → `fsio`). Nothing imports `server.py` or `cli.py`.
+`capture` → `config`; writers → `fsio`). No library module imports `server.py` or `cli.py`; the one
+edge between the entry points is `cli.py`'s lazy import of `server.main` for
+the `serve` subcommand, which keeps the `[server]` extra optional.
 
 ```mermaid
 flowchart TD
@@ -62,7 +65,10 @@ flowchart TD
     entry --> intake["intake.py"]
     entry --> store["store.py"]
     entry --> indexer["indexer.py"]
+    entry --> capture["capture.py"]
     entry --> config["config.py"]
+
+    capture --> config
 
     consolidate --> archive["archive.py"]
     consolidate --> migrate["migrate.py"]
@@ -79,7 +85,6 @@ flowchart TD
     store --> fsio["fsio.py"]
     tasks --> fsio
     migrate --> fsio
-    indexer --> fsio
     config --> fsio
 ```
 
@@ -156,9 +161,14 @@ The spec is throwaway: recorded in `migration-report.md`, never config.
 Several MCP sessions (each its own process) plus the CLI can touch the same
 journal simultaneously. Safety is by construction, in `fsio.py`:
 
-- **Atomic replace** — entries, tasks, views, `journals.toml`, and the index
-  are written to a temp file and `os.replace`d, so readers (and crashes) see
-  old bytes or new bytes, never a truncated file.
+- **Atomic replace** — tasks, views, `journals.toml`, and the index are
+  written to a temp file and `os.replace`d, so readers (and crashes) see old
+  bytes or new bytes, never a truncated file. New entries go one better and
+  are created exclusively (below). The exception is bulk intake
+  (`migrate --apply` / `consolidate --apply`), which writes entry files and
+  its report directly: it runs once, on a journal not yet in service, and a
+  crash mid-run is recovered by re-running against `attic/` rather than by
+  per-file atomicity.
 - **Exclusive create** — a new entry file is claimed atomically; two sessions
   writing the same date+title land in two files instead of one overwriting
   the other.

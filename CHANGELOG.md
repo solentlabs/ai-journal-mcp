@@ -3,6 +3,27 @@
 Notable changes per release. Format follows [Keep a Changelog](https://keepachangelog.com/);
 versions follow [SemVer](https://semver.org/) (0.x: minor may break).
 
+## Unreleased
+
+- **Auto-capture: an optional Claude Code hook that nudges, never writes.**
+  After a substantive session with no entry written, a `Stop` hook adds one
+  non-blocking suggestion to consider capturing; the model drafts and confirms
+  as usual. New `capture.py` holds the decision, new `ai-journal-mcp hook`
+  subcommand is the entry point, and `hooks/auto-capture.json` is the install
+  snippet. Tuning lives in a new optional `[capture]` table in `journals.toml`
+  (`enabled`, `min_turns`); per-session state lives in
+  `~/.local/state/ai-journal-mcp/capture/`. The hook never writes an entry —
+  entries are append-only with no delete path — and never fails a turn: every
+  error exits 0 silently.
+- **Migrated entries now carry a `tags` key**, matching the frontmatter shape
+  `add_entry` produces and the "always written" guarantee in SPECIFICATION §1.
+  Affects `migrate --apply` and `consolidate --apply`.
+- **Docs corrected against the code**: the UC6 install line missed the
+  `[server]` extra, the dependency notes claimed nothing imports `server.py`
+  (`cli.py` does, lazily) and drew an `indexer → fsio` edge that does not
+  exist, the atomic-write claim over-covered bulk intake, SPECIFICATION §1
+  omitted `time`, and `scripts/README.md` omitted the `make trust` helper.
+
 ## 0.5.0 — 2026-07-31
 
 - **Task titles are editable; the task id stays the stable handle.**

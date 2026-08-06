@@ -100,6 +100,7 @@ words:
   - frontmatter
   - Frontmatter
   - greppable
+  - journaled
   - journaling
   - megafile
   - megafiles
@@ -109,10 +110,13 @@ words:
   - syncable
   - unimportable
   - unioned
+  - unkillable
   - unparseable
   - unthemed
+  - unwritable
 
   # Project / external references
+  - chrismbryant
   - goatcounter
   - intelliflow
   - shipslog

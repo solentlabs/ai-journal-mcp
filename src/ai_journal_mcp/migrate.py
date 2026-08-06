@@ -57,7 +57,9 @@ def _frontmatter(entry: Entry, source: str) -> str:
     meta: dict[str, object] = {"date": entry.date.isoformat()}
     if entry.time:
         meta["time"] = entry.time
-    meta.update({"title": entry.title, "themes": entry.themes, "source": source})
+    # tags is always written, empty or not (spec §1) — a migrated entry must
+    # carry the same frontmatter shape as one written by add_entry
+    meta.update({"title": entry.title, "themes": entry.themes, "tags": entry.tags, "source": source})
     return "---\n" + yaml.safe_dump(meta, sort_keys=False, allow_unicode=True) + "---\n"
 
 

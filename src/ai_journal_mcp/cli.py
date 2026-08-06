@@ -181,6 +181,29 @@ def _serve() -> int:
     return 0
 
 
+def _hook(_args: argparse.Namespace) -> int:
+    """Claude Code hook entry point: hook JSON on stdin, nudge JSON on stdout.
+
+    Deliberately unkillable. This runs on every assistant turn, so any failure
+    — unreadable config, unwritable state dir, a hook payload shaped differently
+    by a future Claude Code release — must be a silent no-op. A hook that errors
+    puts a notice in front of the user every single turn, which is a worse
+    outcome than auto-capture quietly not firing.
+    """
+    import json
+
+    from .capture import handle_event
+
+    try:
+        event = json.loads(sys.stdin.read() or "{}")
+        nudge = handle_event(event) if isinstance(event, dict) else None
+    except Exception:  # noqa: BLE001 — see docstring; never disrupt a session
+        return 0
+    if nudge:
+        print(json.dumps({"hookSpecificOutput": {"hookEventName": "Stop", "additionalContext": nudge}}))
+    return 0
+
+
 def _search(args: argparse.Namespace) -> int:
     try:
         results = search(args.db, args.query, limit=args.limit, theme=args.theme, since=args.since, until=args.until)
@@ -246,6 +269,8 @@ def main(argv: list[str] | None = None) -> int:
 
     sub.add_parser("serve", help="run the MCP stdio server (requires ai-journal-mcp[server])")
 
+    sub.add_parser("hook", help="Claude Code auto-capture hook (reads hook JSON on stdin); see hooks/README.md")
+
     args = parser.parse_args(argv)
 
     if args.command == "scan":
@@ -264,6 +289,8 @@ def main(argv: list[str] | None = None) -> int:
         return _refresh(args)
     if args.command == "serve":
         return _serve()
+    if args.command == "hook":
+        return _hook(args)
     if args.command == "search":
         return _search(args)
     return 0

@@ -10,6 +10,9 @@ from .fsio import write_text_atomic
 
 DEFAULT_CONFIG = Path("~/.config/ai-journal-mcp/journals.toml").expanduser()
 DEFAULT_DB = Path("~/.local/share/ai-journal-mcp/index.db").expanduser()
+# Per-session auto-capture counters. State, not data: disposable, machine-local,
+# and never part of a journal.
+DEFAULT_STATE_DIR = Path("~/.local/state/ai-journal-mcp/capture").expanduser()
 
 
 @dataclass
@@ -17,6 +20,42 @@ class JournalSource:
     name: str
     path: Path
     mode: str  # "managed" | "indexed"
+
+
+@dataclass
+class CaptureConfig:
+    """The ``[capture]`` table of journals.toml — auto-capture tuning."""
+
+    enabled: bool = True
+    min_turns: int = 8
+
+
+def load_capture_config(config_path: Path | None = None) -> CaptureConfig:
+    """Read ``[capture]`` from journals.toml, falling back to the defaults.
+
+    A missing file or a missing/!mapping table is not an error: auto-capture is
+    opt-in by *installing the hook*, so an untuned config must still work. Only
+    keys that are present override, and a wrong-typed value is ignored rather
+    than raising — a hook runs on every turn and must never wedge a session over
+    a typo in a config it didn't need.
+    """
+    path = config_path or DEFAULT_CONFIG
+    defaults = CaptureConfig()
+    if not path.exists():
+        return defaults
+    try:
+        table = tomllib.loads(path.read_text(encoding="utf-8")).get("capture", {})
+    except (OSError, tomllib.TOMLDecodeError):
+        return defaults
+    if not isinstance(table, dict):
+        return defaults
+    enabled = table.get("enabled", defaults.enabled)
+    min_turns = table.get("min_turns", defaults.min_turns)
+    return CaptureConfig(
+        enabled=enabled if isinstance(enabled, bool) else defaults.enabled,
+        # bool is an int subclass; `min_turns = true` is a mistake, not a 1
+        min_turns=min_turns if isinstance(min_turns, int) and not isinstance(min_turns, bool) else defaults.min_turns,
+    )
 
 
 def load_config(config_path: Path | None = None) -> list[JournalSource]:

@@ -78,6 +78,16 @@ def test_migration_no_text_loss(make_journal):
     assert len(before - after) == 1
 
 
+def test_migrated_entries_carry_a_tags_key(make_journal):
+    # Spec §1: tags is always written, empty or not. A migrated entry must have
+    # the same frontmatter shape as one written by add_entry, or "always
+    # written" is false for every entry that arrived through intake.
+    root = make_journal(MESSY_FILES)
+    result = apply_migration(scan_journal(root))
+    for path in result.written:
+        assert "\ntags: []\n" in path.read_text(encoding="utf-8"), path
+
+
 def test_untitled_same_date_entries_both_survive(make_journal):
     # Two distinct date-only logs on the same day must NOT be merged just
     # because neither has a title (regression: _dedup once keyed every
