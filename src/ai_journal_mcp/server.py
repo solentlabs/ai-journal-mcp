@@ -18,7 +18,8 @@ from .intake import format_report, scan_journal
 from .migrate import refresh_views
 from .model import Entry
 from .spec import SpecError, parse_spec
-from .store import load_source, write_entry
+from .store import EntryError, load_source, write_entry
+from .store import update_entry as _update_entry
 
 # Sent to every MCP client at initialization and surfaced to the model each
 # session: the journal/memory division of labor lives here so it reaches any
@@ -145,6 +146,37 @@ def add_entry(
     if skipped:
         return f"{path}\n{_warning(skipped)}"
     return str(path)
+
+
+@mcp.tool()
+def update_entry(
+    journal: str,
+    path: str,
+    title: str | None = None,
+    body: str | None = None,
+    themes: list[str] | str | None = None,
+    tags: list[str] | str | None = None,
+    blog_angles: list[str] | str | None = None,
+) -> str:
+    """Edit an existing entry in a managed journal — only the fields you pass
+    change. `path` is the path add_entry returned (or a search result source).
+    themes/tags/blog_angles REPLACE the stored list (read the entry first to
+    add one; pass [] to clear). date/time/source are preserved. A changed
+    `title` renames the file to match its new slug and rewrites task links to
+    it, so the returned path may differ from the one you passed — use the
+    returned one from then on. Views and the index are refreshed. No history
+    is kept."""
+    root = _managed_root(journal)
+    try:
+        new_path = _update_entry(root, path, title=title, body=body, themes=themes, tags=tags, blog_angles=blog_angles)
+    except EntryError as exc:
+        raise ValueError(str(exc)) from exc
+    skipped: list[str] = []
+    refresh_views(root, skipped=skipped)
+    _reindex()
+    if skipped:
+        return f"{new_path}\n{_warning(skipped)}"
+    return str(new_path)
 
 
 @mcp.tool()

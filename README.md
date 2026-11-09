@@ -76,8 +76,8 @@ Four capabilities, one local MCP server:
    priority, and what's blocked on what (`add_task`, `update_task`,
    `list_tasks`). Each task links to the entries that give it context, so
    resuming one surfaces the reasoning behind it. Tasks are journaling's mutable
-   sibling — separate files, their own rules, never bending the append-only
-   entries.
+   sibling — separate files, their own rules, never bending the
+   entries' rule that they record what happened (edits are corrections only).
 
 ## Your data stays yours
 

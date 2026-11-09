@@ -1,6 +1,6 @@
 """Tasks: a mutable kind alongside append-only journal entries.
 
-Journal entries record what happened and never change. Tasks track what to do
+Journal entries record what happened (edited only to correct, via ``update_entry``). Tasks track what to do
 next — their status, priority, and dependencies change over time — and link
 back to the entries that give them context, so picking a task up later surfaces
 the thinking behind it.

@@ -5,6 +5,13 @@ versions follow [SemVer](https://semver.org/) (0.x: minor may break).
 
 ## Unreleased
 
+- **`update_entry`: edit an existing entry.** Change `title`, `body`, `themes`,
+  `tags`, or `blog_angles` in place (lists replace; other frontmatter is
+  preserved). A changed title renames the file and rewrites task links to it;
+  the tool returns the current path. The pre-edit text is saved under
+  `attic/edits/` (pruned after 90 days). Amends the
+  append-only-entries rule — see ARCHITECTURE_DECISIONS.
+
 - **Auto-capture: an optional Claude Code hook that nudges, never writes.**
   After a substantive session with no entry written, a `Stop` hook adds one
   non-blocking suggestion to consider capturing; the model drafts and confirms

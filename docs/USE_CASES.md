@@ -106,8 +106,8 @@ re-finding the entry that explains *why* it matters.
 **Flow:** `add_task`/`update_task`/`list_tasks` manage a mutable task kind
 (status, priority, `blocked_by`). `list_tasks` returns the ready-to-pick-up set
 (blockers done) and each task's linked `entries`; `get_entry` on those pulls the
-context. Tasks are markdown files under `tasks/`, separate from append-only
-entries.
+context. Tasks are markdown files under `tasks/`, separate from
+entries, which are corrected only via `update_entry`.
 
 **Why it matters:** Insights and intentions live together. The journal already
 holds *what you learned*; tasks add *what's left to do about it*, linked so the

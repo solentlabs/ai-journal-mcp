@@ -6,9 +6,9 @@ server cannot close that gap — it only responds, it cannot start a turn — so
 the trigger is a Claude Code hook that calls in here once per assistant turn.
 
 This module decides; it never writes an entry. The nudge points the model at
-the capture skill, which drafts one and confirms with the user. Entries are
-append-only with no delete tool, so a false-positive auto-entry would be
-permanent, while a nudge that misfires costs one line of context. See the
+the capture skill, which drafts one and confirms with the user. There is
+no delete tool (`update_entry` only corrects), so a false-positive auto-entry
+would linger in the archive, while a nudge that misfires costs one line of context. See the
 auto-capture ADR.
 
 No transcript parsing: the ``Stop`` hook firing *is* the turn counter, and a

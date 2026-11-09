@@ -4,8 +4,8 @@ Journaling depends on someone remembering to journal, at exactly the moment
 they are deepest in the work. This hook removes that dependency without taking
 the judgment away: after a session has done substantive work with no entry
 written, it puts one line in front of the model suggesting a capture. **It
-never writes an entry itself** — entries are append-only and there is no delete
-tool, so a wrong auto-entry would be permanent, while a nudge that misfires
+never writes an entry itself** — there is no delete tool and `update_entry` is for
+corrections, so a wrong auto-entry would linger in the archive, while a nudge that misfires
 costs a line of context. The reasoning is in
 [`docs/ARCHITECTURE_DECISIONS.md`](../docs/ARCHITECTURE_DECISIONS.md)
 ("Auto-capture nudges; it never writes").

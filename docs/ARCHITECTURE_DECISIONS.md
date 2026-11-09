@@ -175,6 +175,9 @@ practice.
 
 ## Tasks are a mutable kind; entries stay append-only
 
+> Amended: entries can now be corrected via `update_entry` (see "Entries are
+> editable" below); the rule below describes the original separation.
+
 **Decision:** Journal entries are append-only and immutable (what happened).
 Tasks are a separate, **mutable** kind (what to do next) — `status`, `priority`,
 and `blocked_by` change over time — stored one markdown file per task under
@@ -212,6 +215,32 @@ would bury the journal's signal (lessons, patterns) in noise. So
 `update_task(status="done", reflection=…)` graduates the ones worth remembering.
 The two kinds stay distinct (tasks keep `status`/`priority`/`blocked_by`; entries
 stay immutable and themed); only this bridge crosses between them, future → past.
+
+## Entries are editable via `update_entry` (amends "entries stay append-only")
+
+**Decision:** Entries can be corrected in place with `update_entry` (title, body,
+themes, tags, blog angles). Lists replace rather than merge; `date`/`time`/
+`source` are preserved. A title change renames the file to its new slug and
+rewrites task `entries:` links to the old path. No history or undo is kept.
+
+**Rationale:** Fixing a tag, theme, or title was only possible by hand-editing
+YAML and re-running the index, and it came up repeatedly. Unlike task ids, an entry has no
+stable id beyond its path, so a frozen filename would leave misleading slugs; the
+rename is safe because the only inbound references (task links) are rewritten in
+the same locked operation. The "entries are immutable" rule is relaxed for
+correction only — it is not a versioning system, and the capture hook still never
+writes entries (a wrong entry is now fixable, but still not auto-written).
+
+**Recoverability:** before any edit or rename, the old text is copied to
+`attic/edits/<entry path without .md>/<UTC timestamp>.md` (the "Attic over
+deletion" rule applied to edits). Snapshots older than 90 days
+(`EDIT_SNAPSHOT_DAYS`) are pruned on each later edit, so the attic stays small
+without a separate cleanup step; a no-op edit writes no snapshot. The attic is
+outside `entries/`, so it is never indexed. Restoring is manual (copy a snapshot
+back). A rename leaves its snapshots under the old name.
+
+**Known limitation:** only edits made through `update_entry` are captured;
+hand-editing a file and running `reindex` leaves no snapshot.
 
 ## Tasks are indexed too (reverses a 0.1.0 choice)
 
@@ -326,8 +355,8 @@ a stdio server only responds, it cannot initiate a turn — so the only
 component that can observe a session and speak into it is a client hook.
 
 The hook must not write the entry itself, for two reasons. There is no delete
-tool and entries are append-only (see "Attic over deletion"), so a
-false-positive auto-entry is permanent; and an entry's substance — the lesson,
+tool and entries are only correctable via `update_entry`, never removed
+(see "Attic over deletion"), so a false-positive auto-entry lingers; and an entry's substance — the lesson,
 the themes, the blog angle — is judgment applied to the conversation, which a
 subprocess reading a transcript does badly. A nudge that misfires costs one
 line of context; a bad auto-entry degrades the archive that the whole tool

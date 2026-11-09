@@ -135,7 +135,7 @@ can be deleted at any time without losing anything.
 kind. Tasks live under `tasks/`, are rewritten in place on update, and are
 indexed alongside entries so search spans both. Completing a task with a
 `reflection` *graduates* it into a dated journal entry — the one bridge
-between the mutable and append-only kinds.
+between the mutable and record-of-what-happened kinds.
 
 **Intake** (`scan` → report; `migrate --apply` → managed layout;
 `consolidate --from ... dest` → several sources merged into a fresh managed

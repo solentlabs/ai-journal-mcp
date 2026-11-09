@@ -90,6 +90,20 @@ def test_add_entry_full_cycle(journals):
     assert server.search_journal("captured wisdom")[0]["title"] == "Fresh Capture"
 
 
+def test_update_entry_renames_reindexes_and_guards(journals):
+    old = server.add_entry("technical", "Draft Title", "unique-zebra body", tags=["a"], entry_date="2026-06-11")
+    new = server.update_entry("technical", old, title="Final Title", tags=["a", "cmm-decision"])
+    assert new != old and Path(new).exists() and not Path(old).exists()
+    hit = server.search_journal("unique-zebra")[0]
+    assert hit["title"] == "Final Title" and hit["source"].endswith(Path(new).name)
+    assert "cmm-decision" in server.get_entry(new)
+    assert "Draft Title" not in (journals / "JOURNAL.md").read_text()
+    with pytest.raises(ValueError, match="read-only"):
+        server.update_entry("deals", new, tags=["x"])
+    with pytest.raises(ValueError, match="not an entry"):
+        server.update_entry("technical", "../x.md", tags=["x"])
+
+
 def test_update_task_with_reflection_graduates_into_searchable_entry(journals):
     created = server.add_task("technical", "Write up the migration audit", body="audit notes")
     res = server.update_task(
