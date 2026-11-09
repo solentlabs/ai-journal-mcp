@@ -3,7 +3,7 @@
 Notable changes per release. Format follows [Keep a Changelog](https://keepachangelog.com/);
 versions follow [SemVer](https://semver.org/) (0.x: minor may break).
 
-## Unreleased
+## 0.6.0 — 2026-11-09
 
 - **`update_entry`: edit an existing entry.** Change `title`, `body`, `themes`,
   `tags`, or `blog_angles` in place (lists replace; other frontmatter is
